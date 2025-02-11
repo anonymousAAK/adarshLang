@@ -1,0 +1,59 @@
+
+badlo x = 10;
+badlo y = 20;
+badlo flag = sahi_hai_be;  
+badlo condition = jhuth;  
+
+dikhao("Initial x:");
+dikhao(x);
+
+agar (flag) {
+    dikhao("flag is sahi_hai_be (true)!");
+} warna {
+    dikhao("flag is jhuth (false)!");
+}
+
+x = x + 5;
+dikhao("x after adding 5:");
+dikhao(x);
+
+
+agar (x > y) {
+    dikhao("x is bigger than y!");
+} warna {
+    dikhao("x is not bigger than y!");
+}
+
+
+badlo count = 3;
+dikhao("Begin countdown:");
+jabtak (count > 0) {
+    dikhao(count);
+    count = count - 1;
+}
+
+kaam sumFunc(a, b) {
+    wapas (a + b);
+}
+
+badlo sumResult = sumFunc(x, y);
+dikhao("Sum of x and y:");
+dikhao(sumResult);
+
+kaam greet(n) {
+    jabtak (n > 0) {
+        dikhao("Hello from greet function!");
+        n = n - 1;
+    }
+    wapas sahi_hai_be;
+}
+
+
+badlo greetResult = greet(2);
+
+agar (greetResult) {
+    dikhao("greet returned sahi_hai_be!");
+} warna {
+    dikhao("greet returned jhuth!");
+}
+

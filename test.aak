@@ -1,0 +1,25 @@
+badlo x = 10;
+dikhao(x);
+
+agar (x < 20) {
+    dikhao("x is less than 20!");
+} warna {
+    dikhao("x is greater or equal to 20");
+}
+
+badlo y;
+y = 5;
+
+jabtak (y > 0) {
+    dikhao("Countdown: ");
+    dikhao(y);
+    y = y - 1;
+}
+
+kaam testFunc(a, b) {
+    wapas (a + b);
+}
+
+badlo result = testFunc(x, 7);
+dikhao("Result of testFunc(x, 7): ");
+dikhao(result);

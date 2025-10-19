@@ -19,6 +19,8 @@ class AdarshTokenType:
     WARNA       = 'WARNA'       # warna
     JABTAK      = 'JABTAK'      # jabtak
     DIKHAO      = 'DIKHAO'      # dikhao
+    BAS         = 'BAS'         # bas
+    AAGE_BADHO  = 'AAGE_BADHO'  # aage_badho
     SAHI_HAI_BE = 'SAHI_HAI_BE' # sahi_hai_be
     JHUTH       = 'JHUTH'       # jhuth
 
@@ -43,6 +45,8 @@ class AdarshTokenType:
     RPAREN      = ')'
     LBRACE      = '{'
     RBRACE      = '}'
+    LBRACKET    = '['
+    RBRACKET    = ']'
 
 HINGLISH_KEYWORDS = {
     'badlo':       AdarshTokenType.BADLO,
@@ -52,6 +56,8 @@ HINGLISH_KEYWORDS = {
     'warna':       AdarshTokenType.WARNA,
     'jabtak':      AdarshTokenType.JABTAK,
     'dikhao':      AdarshTokenType.DIKHAO,
+    'bas':         AdarshTokenType.BAS,
+    'aage_badho':  AdarshTokenType.AAGE_BADHO,
     'sahi_hai_be': AdarshTokenType.SAHI_HAI_BE,
     'jhuth':       AdarshTokenType.JHUTH,
 }
@@ -68,6 +74,8 @@ HINGLISH_OPERATORS = {
     ')':  AdarshTokenType.RPAREN,
     '{':  AdarshTokenType.LBRACE,
     '}':  AdarshTokenType.RBRACE,
+    '[':  AdarshTokenType.LBRACKET,
+    ']':  AdarshTokenType.RBRACKET,
     '!':  AdarshTokenType.NAHIN,
 }
 
@@ -253,13 +261,34 @@ class AdarshStringLiteralNode(AdarshASTNode):
     def __init__(self, value):
         self.value = value
 
+class AdarshListLiteralNode(AdarshASTNode):
+    def __init__(self, elements):
+        self.elements = elements
+
+class AdarshIndexAssignNode(AdarshASTNode):
+    def __init__(self, collection, index_expr, value_expr):
+        self.collection = collection
+        self.index_expr = index_expr
+        self.value_expr = value_expr
+
 class AdarshVarReferenceNode(AdarshASTNode):
     def __init__(self, var_name):
         self.var_name = var_name
 
+class AdarshIndexAccessNode(AdarshASTNode):
+    def __init__(self, collection, index_expr):
+        self.collection = collection
+        self.index_expr = index_expr
+
 class AdarshDikhaoNode(AdarshASTNode):
     def __init__(self, expr):
         self.expr = expr
+
+class AdarshBreakNode(AdarshASTNode):
+    pass
+
+class AdarshContinueNode(AdarshASTNode):
+    pass
 
 class AdarshIfNode(AdarshASTNode):
     def __init__(self, condition, if_block, else_block=None):
@@ -367,19 +396,30 @@ class AdarshParser:
             return self.parse_jabtak()
         elif self.current_token.type == AdarshTokenType.DIKHAO:
             return self.parse_dikhao()
+        elif self.current_token.type == AdarshTokenType.BAS:
+            return self.parse_bas()
+        elif self.current_token.type == AdarshTokenType.AAGE_BADHO:
+            return self.parse_aage_badho()
         elif self.current_token.type == AdarshTokenType.WAPAS:
             return self.parse_wapas()
         elif self.current_token.type == AdarshTokenType.LBRACE:
             return self.parse_block()
         else:
             expr = self.parse_expression()
-            if (isinstance(expr, AdarshVarReferenceNode) and 
-               self.current_token.type == AdarshTokenType.ASSIGN):
-                var_name = expr.var_name
-                self.eat(AdarshTokenType.ASSIGN)
-                right_expr = self.parse_expression()
-                self.eat(AdarshTokenType.SEMI)
-                return AdarshAssignNode(var_name, right_expr)
+            if self.current_token.type == AdarshTokenType.ASSIGN:
+                if isinstance(expr, AdarshVarReferenceNode):
+                    var_name = expr.var_name
+                    self.eat(AdarshTokenType.ASSIGN)
+                    right_expr = self.parse_expression()
+                    self.eat(AdarshTokenType.SEMI)
+                    return AdarshAssignNode(var_name, right_expr)
+                elif isinstance(expr, AdarshIndexAccessNode):
+                    self.eat(AdarshTokenType.ASSIGN)
+                    value_expr = self.parse_expression()
+                    self.eat(AdarshTokenType.SEMI)
+                    return AdarshIndexAssignNode(expr.collection, expr.index_expr, value_expr)
+                else:
+                    raise AdarshParserError("Invalid assignment target in AdarshLang.")
             else:
                 self.eat(AdarshTokenType.SEMI)
                 return expr
@@ -404,7 +444,10 @@ class AdarshParser:
         else_block = None
         if self.current_token.type == AdarshTokenType.WARNA:
             self.eat(AdarshTokenType.WARNA)
-            else_block = self.parse_block()
+            if self.current_token.type == AdarshTokenType.AGAR:
+                else_block = self.parse_agar()
+            else:
+                else_block = self.parse_block()
         return AdarshIfNode(condition, if_block, else_block)
 
     def parse_jabtak(self):
@@ -422,6 +465,16 @@ class AdarshParser:
         self.eat(AdarshTokenType.RPAREN)
         self.eat(AdarshTokenType.SEMI)
         return AdarshDikhaoNode(expr)
+
+    def parse_bas(self):
+        self.eat(AdarshTokenType.BAS)
+        self.eat(AdarshTokenType.SEMI)
+        return AdarshBreakNode()
+
+    def parse_aage_badho(self):
+        self.eat(AdarshTokenType.AAGE_BADHO)
+        self.eat(AdarshTokenType.SEMI)
+        return AdarshContinueNode()
 
     def parse_wapas(self):
         self.eat(AdarshTokenType.WAPAS)
@@ -507,6 +560,15 @@ class AdarshParser:
             return self.parse_kaam_call_or_var_or_literal()
 
     def parse_kaam_call_or_var_or_literal(self):
+        node = self.parse_primary()
+        while self.current_token.type == AdarshTokenType.LBRACKET:
+            self.eat(AdarshTokenType.LBRACKET)
+            index_expr = self.parse_expression()
+            self.eat(AdarshTokenType.RBRACKET)
+            node = AdarshIndexAccessNode(node, index_expr)
+        return node
+
+    def parse_primary(self):
         token = self.current_token
         if token.type == AdarshTokenType.IDENT:
             next_tok = self.peek()
@@ -518,31 +580,44 @@ class AdarshParser:
                 if self.current_token.type != AdarshTokenType.RPAREN:
                     args = self.parse_args()
                 self.eat(AdarshTokenType.RPAREN)
-                return AdarshKaamCallNode(func_name, args)
+                node = AdarshKaamCallNode(func_name, args)
             else:
                 self.eat(AdarshTokenType.IDENT)
-                return AdarshVarReferenceNode(token.value)
+                node = AdarshVarReferenceNode(token.value)
         elif token.type == AdarshTokenType.NUMBER:
             self.eat(AdarshTokenType.NUMBER)
-            return AdarshNumLiteralNode(token.value)
+            node = AdarshNumLiteralNode(token.value)
         elif token.type == AdarshTokenType.SAHI_HAI_BE:
             self.eat(AdarshTokenType.SAHI_HAI_BE)
-            return AdarshBoolLiteralNode(True)
+            node = AdarshBoolLiteralNode(True)
         elif token.type == AdarshTokenType.JHUTH:
             self.eat(AdarshTokenType.JHUTH)
-            return AdarshBoolLiteralNode(False)
+            node = AdarshBoolLiteralNode(False)
         elif token.type == AdarshTokenType.STRING:
             self.eat(AdarshTokenType.STRING)
-            return AdarshStringLiteralNode(token.value)
+            node = AdarshStringLiteralNode(token.value)
+        elif token.type == AdarshTokenType.LBRACKET:
+            node = self.parse_list_literal()
         elif token.type == AdarshTokenType.LPAREN:
             self.eat(AdarshTokenType.LPAREN)
             node = self.parse_expression()
             self.eat(AdarshTokenType.RPAREN)
-            return node
         else:
             raise AdarshParserError(
                 f"Unexpected token '{token.type}' at line {token.line}, col {token.column}"
             )
+        return node
+
+    def parse_list_literal(self):
+        self.eat(AdarshTokenType.LBRACKET)
+        elements = []
+        if self.current_token.type != AdarshTokenType.RBRACKET:
+            elements.append(self.parse_expression())
+            while self.current_token.type == AdarshTokenType.COMMA:
+                self.eat(AdarshTokenType.COMMA)
+                elements.append(self.parse_expression())
+        self.eat(AdarshTokenType.RBRACKET)
+        return AdarshListLiteralNode(elements)
 
     def parse_args(self):
         args = [self.parse_expression()]
@@ -592,64 +667,94 @@ class AdarshSymbolTable:
         self.functions[name] = param_count
 
     def has_function(self, name):
-        return name in self.functions
+        if name in self.functions:
+            return True
+        if self.parent:
+            return self.parent.has_function(name)
+        return False
 
     def get_function_param_count(self, name):
-        return self.functions[name]
+        if name in self.functions:
+            return self.functions[name]
+        if self.parent:
+            return self.parent.get_function_param_count(name)
+        raise AdarshSemanticError(f"Function '{name}' not declared in AdarshLang scope.")
 
 class AdarshSemanticAnalyzer:
     def __init__(self):
-        pass
+        self.builtin_functions = {
+            'length': 1,
+            'push': 2,
+            'pop': 1,
+        }
 
-    def analyze(self, node, scope=None):
+    def analyze(self, node, scope=None, loop_depth=0):
         if scope is None:
             scope = AdarshSymbolTable()
+            for name, count in self.builtin_functions.items():
+                scope.declare_function(name, count)
 
         if isinstance(node, AdarshProgramNode):
             for stmt in node.statements:
-                self.analyze(stmt, scope)
+                self.analyze(stmt, scope, loop_depth)
         elif isinstance(node, BadloNode):
             scope.declare_variable(node.var_name)
             if node.init_expr is not None:
-                self.analyze(node.init_expr, scope)
+                self.analyze(node.init_expr, scope, loop_depth)
         elif isinstance(node, AdarshAssignNode):
             scope.get_variable(node.var_name)
-            self.analyze(node.expr, scope)
+            self.analyze(node.expr, scope, loop_depth)
+        elif isinstance(node, AdarshIndexAssignNode):
+            self.analyze(node.collection, scope, loop_depth)
+            self.analyze(node.index_expr, scope, loop_depth)
+            self.analyze(node.value_expr, scope, loop_depth)
         elif isinstance(node, AdarshBinOpNode):
-            self.analyze(node.left, scope)
-            self.analyze(node.right, scope)
+            self.analyze(node.left, scope, loop_depth)
+            self.analyze(node.right, scope, loop_depth)
         elif isinstance(node, AdarshUnaryOpNode):
-            self.analyze(node.factor, scope)
+            self.analyze(node.factor, scope, loop_depth)
         elif isinstance(node, AdarshNumLiteralNode):
             pass
         elif isinstance(node, AdarshBoolLiteralNode):
             pass
         elif isinstance(node, AdarshStringLiteralNode):
             pass
+        elif isinstance(node, AdarshListLiteralNode):
+            for element in node.elements:
+                self.analyze(element, scope, loop_depth)
         elif isinstance(node, AdarshVarReferenceNode):
             scope.get_variable(node.var_name)
+        elif isinstance(node, AdarshIndexAccessNode):
+            self.analyze(node.collection, scope, loop_depth)
+            self.analyze(node.index_expr, scope, loop_depth)
         elif isinstance(node, AdarshDikhaoNode):
-            self.analyze(node.expr, scope)
+            self.analyze(node.expr, scope, loop_depth)
+        elif isinstance(node, AdarshBreakNode):
+            if loop_depth == 0:
+                raise AdarshSemanticError("'bas' (break) can only be used inside loops in AdarshLang.")
+        elif isinstance(node, AdarshContinueNode):
+            if loop_depth == 0:
+                raise AdarshSemanticError("'aage_badho' (continue) can only be used inside loops in AdarshLang.")
         elif isinstance(node, AdarshIfNode):
-            self.analyze(node.condition, scope)
-            self.analyze(node.if_block, AdarshSymbolTable(parent=scope))
+            self.analyze(node.condition, scope, loop_depth)
+            self.analyze(node.if_block, AdarshSymbolTable(parent=scope), loop_depth)
             if node.else_block:
-                self.analyze(node.else_block, AdarshSymbolTable(parent=scope))
+                self.analyze(node.else_block, AdarshSymbolTable(parent=scope), loop_depth)
         elif isinstance(node, AdarshWhileNode):
-            self.analyze(node.condition, scope)
-            self.analyze(node.block, AdarshSymbolTable(parent=scope))
+            self.analyze(node.condition, scope, loop_depth)
+            self.analyze(node.block, AdarshSymbolTable(parent=scope), loop_depth + 1)
         elif isinstance(node, AdarshBlockNode):
             for s in node.statements:
-                self.analyze(s, scope)
+                self.analyze(s, scope, loop_depth)
         elif isinstance(node, AdarshKaamDefNode):
             scope.declare_function(node.func_name, len(node.params))
             func_scope = AdarshSymbolTable(parent=scope)
             for p in node.params:
                 func_scope.declare_variable(p)
-            self.analyze(node.body, func_scope)
+            self.analyze(node.body, func_scope, 0)
         elif isinstance(node, AdarshWapasNode):
             if node.expr is not None:
-                self.analyze(node.expr, scope)
+                self.analyze(node.expr, scope, loop_depth)
         elif isinstance(node, AdarshKaamCallNode):
             if not scope.has_function(node.func_name):
                 raise AdarshSemanticError(f"Function '{node.func_name}' not declared in AdarshLang.")
@@ -659,7 +764,7 @@ class AdarshSemanticAnalyzer:
                     f"Function '{node.func_name}' expects {expected_count} args, got {len(node.args)}."
                 )
             for arg in node.args:
-                self.analyze(arg, scope)
+                self.analyze(arg, scope, loop_depth)
         else:
             pass
 
@@ -671,10 +776,23 @@ class AdarshReturnSignal:
     def __init__(self, value):
         self.value = value
 
+class AdarshBreakSignal:
+    pass
+
+class AdarshContinueSignal:
+    pass
+
 class AdarshInterpreter:
     def __init__(self):
         self.global_scope = AdarshSymbolTable()
         self.function_definitions = {}
+        self.builtins = {
+            'length': (self._builtin_length, 1),
+            'push': (self._builtin_push, 2),
+            'pop': (self._builtin_pop, 1),
+        }
+        for name, (_, arity) in self.builtins.items():
+            self.global_scope.declare_function(name, arity)
 
     def visit(self, node, scope=None):
         if scope is None:
@@ -758,8 +876,38 @@ class AdarshInterpreter:
     def visit_AdarshStringLiteralNode(self, node, scope):
         return node.value
 
+    def visit_AdarshListLiteralNode(self, node, scope):
+        return [self.visit(element, scope) for element in node.elements]
+
     def visit_AdarshVarReferenceNode(self, node, scope):
         return scope.get_variable(node.var_name)
+
+    def visit_AdarshIndexAccessNode(self, node, scope):
+        collection = self.visit(node.collection, scope)
+        index_value = self.visit(node.index_expr, scope)
+        index_value = self._normalize_index(index_value)
+        try:
+            return collection[index_value]
+        except TypeError:
+            raise RuntimeError("Only indexable values (like lists or strings) support indexing in AdarshLang.")
+        except IndexError:
+            raise RuntimeError("Index out of range while accessing collection in AdarshLang.")
+
+    def visit_AdarshIndexAssignNode(self, node, scope):
+        collection = self.visit(node.collection, scope)
+        index_value = self.visit(node.index_expr, scope)
+        value = self.visit(node.value_expr, scope)
+
+        index_value = self._normalize_index(index_value)
+
+        try:
+            collection[index_value] = value
+        except TypeError:
+            raise RuntimeError("Only mutable indexable values like lists support assignment in AdarshLang.")
+        except IndexError:
+            raise RuntimeError("Index out of range while assigning into collection in AdarshLang.")
+
+        return value
 
     def visit_AdarshDikhaoNode(self, node, scope):
         val = self.visit(node.expr, scope)
@@ -782,17 +930,27 @@ class AdarshInterpreter:
             if not cond_val:
                 break
             result = self.visit(node.block, AdarshSymbolTable(parent=scope))
+            if isinstance(result, AdarshReturnSignal):
+                return result
+            if isinstance(result, AdarshBreakSignal):
+                return None
+            if isinstance(result, AdarshContinueSignal):
+                continue
         return result
 
     def visit_AdarshBlockNode(self, node, scope):
         result = None
         for stmt in node.statements:
             result = self.visit(stmt, scope)
-            if isinstance(stmt, AdarshWapasNode):
-                return result
-            if isinstance(result, AdarshReturnSignal):
+            if isinstance(result, (AdarshReturnSignal, AdarshBreakSignal, AdarshContinueSignal)):
                 return result
         return result
+
+    def visit_AdarshBreakNode(self, node, scope):
+        return AdarshBreakSignal()
+
+    def visit_AdarshContinueNode(self, node, scope):
+        return AdarshContinueSignal()
 
     def visit_AdarshKaamDefNode(self, node, scope):
         self.function_definitions[node.func_name] = node
@@ -806,22 +964,67 @@ class AdarshInterpreter:
         return AdarshReturnSignal(val)
 
     def visit_AdarshKaamCallNode(self, node, scope):
-        func_node = self.function_definitions.get(node.func_name)
-        if not func_node:
-            raise RuntimeError(f"Kaam (function) '{node.func_name}' not defined in AdarshLang.")
-
         arg_values = [self.visit(arg, scope) for arg in node.args]
-        func_scope = AdarshSymbolTable(parent=self.global_scope)
+        func_node = self.function_definitions.get(node.func_name)
+        if func_node:
+            func_scope = AdarshSymbolTable(parent=self.global_scope)
 
-        # Declare each parameter before setting
-        for param_name, arg_val in zip(func_node.params, arg_values):
-            func_scope.declare_variable(param_name)
-            func_scope.set_variable(param_name, arg_val)
+            # Declare each parameter before setting
+            for param_name, arg_val in zip(func_node.params, arg_values):
+                func_scope.declare_variable(param_name)
+                func_scope.set_variable(param_name, arg_val)
 
-        result = self.visit(func_node.body, func_scope)
-        if isinstance(result, AdarshReturnSignal):
-            return result.value
-        return result
+            result = self.visit(func_node.body, func_scope)
+            if isinstance(result, AdarshReturnSignal):
+                return result.value
+            return result
+
+        builtin = self.builtins.get(node.func_name)
+        if builtin:
+            func, expected_arity = builtin
+            if len(arg_values) != expected_arity:
+                raise RuntimeError(
+                    f"Builtin '{node.func_name}' expects {expected_arity} arguments but got {len(arg_values)} in AdarshLang."
+                )
+            return func(arg_values)
+
+        raise RuntimeError(f"Kaam (function) '{node.func_name}' not defined in AdarshLang.")
+
+    def _builtin_length(self, args):
+        value = args[0]
+        try:
+            return len(value)
+        except TypeError:
+            raise RuntimeError("Builtin 'length' expects an indexable value like a list or string in AdarshLang.")
+
+    def _builtin_push(self, args):
+        target, value = args
+        if not isinstance(target, list):
+            raise RuntimeError("Builtin 'push' expects the first argument to be a list in AdarshLang.")
+        target.append(value)
+        return target
+
+    def _builtin_pop(self, args):
+        target = args[0]
+        if not isinstance(target, list):
+            raise RuntimeError("Builtin 'pop' expects the argument to be a list in AdarshLang.")
+        if not target:
+            raise RuntimeError("Cannot pop from an empty list in AdarshLang.")
+        return target.pop()
+
+    def _normalize_index(self, index_value):
+        if isinstance(index_value, bool):
+            raise RuntimeError("Index must be an integer value in AdarshLang.")
+
+        if isinstance(index_value, float):
+            if not index_value.is_integer():
+                raise RuntimeError("Index expressions must evaluate to whole numbers in AdarshLang.")
+            index_value = int(index_value)
+
+        if not isinstance(index_value, int):
+            raise RuntimeError("Index expressions must evaluate to integers in AdarshLang.")
+
+        return index_value
 
 # =====================================================
 # =============== MAIN: COMPILATION PIPELINE ==========

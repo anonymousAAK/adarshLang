@@ -1,0 +1,16 @@
+badlo counter = 0;
+badlo collected = [];
+
+jabtak (counter < 10) {
+    counter = counter + 1;
+    agar (counter == 3) {
+        aage_badho;
+    }
+    push(collected, counter);
+    agar (length(collected) == 4) {
+        bas;
+    }
+}
+
+dikhao("Collected values:");
+dikhao(collected);

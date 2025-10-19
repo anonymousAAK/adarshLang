@@ -1,0 +1,28 @@
+badlo numbers = [1, 2, 3, 5];
+badlo words = ["namaste", "dost"];
+
+badlo originalCount = length(numbers);
+numbers[3] = 8;
+push(numbers, 13);
+badlo removedValue = pop(numbers);
+badlo secondWord = words[1];
+
+dikhao("Kitne numbers shuru mein the? ");
+dikhao(originalCount);
+
+dikhao("Ab numbers kya hain? ");
+dikhao(numbers);
+
+dikhao("Nikali hui value: ");
+dikhao(removedValue);
+
+dikhao("Dusra shabd: ");
+dikhao(secondWord);
+
+agar (length(words) == 1) {
+    dikhao("sirf ek shabd hai");
+} warna agar (length(words) == 2) {
+    dikhao("do shabd mile");
+} warna {
+    dikhao("bahut saare shabd");
+}

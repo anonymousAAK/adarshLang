@@ -1,0 +1,54 @@
+lao "extras.aak";
+
+dhacha Vyakti { naam, umar, shahar };
+
+kaam banakar(naam, umar = 18, shahar = "") {
+    wapas Vyakti { naam: naam, umar: umar, shahar: shahar };
+}
+
+kaam totalKar(shuruaat, baaki items) {
+    badlo acc = shuruaat;
+    ke_liye (badlo value : items) {
+        acc = acc + value;
+    }
+    wapas acc;
+}
+
+badlo maker = banakar;
+badlo hero = maker("Adarsh", 24, "Indore");
+hero.umar = hero.umar + 1;
+rakho(hero, "paisa", 1000);
+
+badlo addDo = kaam (value) { wapas value + 2; };
+badlo numbers = [1, 2, 3];
+badlo mapped = map(addDo, numbers);
+
+badlo sum = totalKar(10, 5, 5, 10);
+
+pakdo {
+    chhoddo("galti ho gayi");
+} chhoddo (err) {
+    dikhao("Pakda: ");
+    dikhao(err);
+}
+
+badlo updated = badhao(sum);
+
+badlo summary = join(mapped, ",");
+badlo parts = split(lower("HELLO WORLD"), " ");
+badlo floored = floor(4.7);
+badlo ceiled = ceil(4.1);
+badlo randomValue = random_number();
+
+badlo reduceSum = reduce(kaam (carry, value) { wapas carry + value; }, numbers);
+
+dikhao(hero.naam);
+dikhao(hero.umar);
+dikhao(nikalo(hero, "shahar", "unknown"));
+dikhao(updated);
+dikhao(summary);
+dikhao(parts);
+dikhao(floored);
+dikhao(ceiled);
+dikhao(randomValue);
+dikhao(reduceSum);

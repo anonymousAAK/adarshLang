@@ -1,3 +1,10 @@
+badlo collected = [];
+
+ginnati (badlo i = 0; i < 10; i = i + 1) {
+    agar (i == 3) {
+        aage_badho;
+    }
+    push(collected, i);
 badlo counter = 0;
 badlo collected = [];
 
@@ -10,6 +17,21 @@ jabtak (counter < 10) {
     agar (length(collected) == 4) {
         bas;
     }
+}
+
+badlo fruits = ["seb", "kela", "amrud"];
+ke_liye (badlo fruit : fruits) {
+    push(collected, length(fruit));
+}
+
+badlo mood = "khush";
+chuno (mood) {
+    case "udaas":
+        push(collected, -1);
+    case "khush":
+        push(collected, 42);
+    warna_case:
+        push(collected, 0);
 }
 
 dikhao("Collected values:");

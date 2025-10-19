@@ -1,4 +1,49 @@
 badlo numbers = [1, 2, 3, 5];
+badlo words = ["namaste", "dost", "bhai"];
+
+badlo info = {"naam": "Adarsh", "umar": 21};
+rakho(info, "shahar", "Indore");
+badlo greet = nikalo(info, "naam");
+badlo missing = nikalo(info, "pincode", "unknown");
+
+badlo doubleFun = kaam (value) { wapas (value * 2); };
+badlo isEven = kaam (value) { wapas (value == floor(value / 2) * 2); };
+badlo summer = kaam (carry, value) { wapas (carry + value); };
+
+badlo doubled = map(doubleFun, numbers);
+badlo evens = filter(isEven, numbers);
+badlo reduced = reduce(summer, numbers, 0);
+
+badlo shout = upper(join(words, "-"));
+
+numbers[3] = 8;
+push(numbers, 13);
+badlo removedValue = pop(numbers);
+
+badlo secondWord = words[1];
+
+dikhao("Greeting naam se: ");
+dikhao(greet);
+
+dikhao("Default nikalo fallback: ");
+dikhao(missing);
+
+dikhao("Map doubled numbers: ");
+dikhao(doubled);
+
+dikhao("Filtered evens: ");
+dikhao(evens);
+
+dikhao("Reduced total: ");
+dikhao(reduced);
+
+dikhao("Shout words: ");
+dikhao(shout);
+
+dikhao("Updated numbers: ");
+dikhao(numbers);
+
+dikhao("Removed value: ");
 badlo words = ["namaste", "dost"];
 
 badlo originalCount = length(numbers);

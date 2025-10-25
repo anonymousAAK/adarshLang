@@ -81,7 +81,7 @@ HOME_PAGE_TEMPLATE = """
         <li><strong>Printing:</strong> <code>dikhao(x);</code></li>
         <li><strong>Booleans:</strong> <code>sahi_hai_be</code>, <code>jhuth</code></li>
         <li><strong>Conditionals:</strong> <code>agar ... warna</code> with chained <code>warna agar</code></li>
-        <li><strong>Loops:</strong> <code>jabtak</code> (while), <code>ginnati</code> (for), <code>ke_liye (value in items)</code> (foreach)</li>
+        <li><strong>Loops:</strong> <code>jabtak</code> (while), <code>ginnati</code> (for), <code>ke_liye</code> (foreach)</li>
         <li><strong>Switching:</strong> <code>chuno (expr) { case ... warna_case ... }</code></li>
         <li><strong>Functions:</strong> defaults, <code>baaki</code> varargs, anonymous <code>kaam (...) { ... }</code></li>
         <li><strong>Collections:</strong> lists + helpers (<code>push</code>, <code>pop</code>, <code>length</code>) aur dictionaries/`dhacha` records with <code>rakho</code>/<code>nikalo</code></li>
@@ -102,10 +102,34 @@ badlo nums = [1, 2, 3];
 
 ginnati (badlo i = 0; i < length(nums); i = i + 1) {
     dikhao(nums[i]);
-}
+        <li><strong>Booleans:</strong> <code>sahi_hai_be</code> (true), <code>jhuth</code> (false)</li>
+        <li><strong>Conditionals:</strong> <code>agar (x < 20) { ... } warna { ... }</code> and chained <code>warna agar</code> blocks</li>
+        <li><strong>While Loop:</strong> <code>jabtak (y > 0) { ... }</code></li>
+        <li><strong>Functions:</strong>
+          <code>kaam sumFunc(a, b) { wapas (a + b); }</code>
+        </li>
+        <li><strong>Lists:</strong> <code>badlo nums = [1, 2, 3];</code> with indexing via <code>nums[0]</code></li>
+        <li><strong>List updates:</strong> mutate entries with <code>nums[1] = 99;</code></li>
+        <li><strong>Loop control:</strong> <code>bas;</code> breaks and <code>aage_badho;</code> continues inside <code>jabtak</code></li>
+        <li><strong>Built-ins:</strong> <code>length(nums)</code>, <code>push(nums, value)</code>, and <code>pop(nums)</code></li>
+        <li><strong>Logical Ops:</strong> <code>aur</code> (&&), <code>ya</code> (||), <code>nahin</code> (!)</li>
+      </ul>
+      <p>Here’s an example using all features:</p>
+      <pre>
+badlo x = 10;
+badlo nums = [1, 2, 3];
+push(nums, 42);
+badlo y = length(nums);
 
-ke_liye (badlo value in nums) {
-    dikhao(value);
+jabtak (y > 0) {
+    y = y - 1;
+    agar (y == 2) {
+        aage_badho;
+    }
+    dikhao(nums[y]);
+    agar (y == 0) {
+        bas;
+    }
 }
 
 pakdo {

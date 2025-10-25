@@ -8,7 +8,7 @@ kaam banakar(naam, umar = 18, shahar = "") {
 
 kaam totalKar(shuruaat, baaki items) {
     badlo acc = shuruaat;
-    ke_liye (badlo value in items) {
+    ke_liye (badlo value : items) {
         acc = acc + value;
     }
     wapas acc;

@@ -1,7 +1,12 @@
 from flask import Flask, request, render_template_string
 import sys
 from io import StringIO
-from adarsh_lang_compiler import adarshlang_compile_and_run
+from adarsh_lang_compiler import (
+    adarshlang_compile_and_run,
+    AdarshRuntimeError,
+    AdarshUserException,
+    AdarshSemanticError,
+)
 
 app = Flask(__name__)
 
@@ -72,36 +77,45 @@ HOME_PAGE_TEMPLATE = """
       <h2>AdarshLang Quick Tutorial</h2>
       <p>AdarshLang is a Hinglish-inspired language with a comedic twist. Below is a summary of its features:</p>
       <ul>
-        <li><strong>Variables:</strong> <code>badlo x = 10;</code></li>
+        <li><strong>Variables:</strong> <code>badlo x = 10;</code> aur expressions</li>
         <li><strong>Printing:</strong> <code>dikhao(x);</code></li>
-        <li><strong>Booleans:</strong> <code>sahi_hai_be</code> (true), <code>jhuth</code> (false)</li>
-        <li><strong>Conditionals:</strong> <code>agar (x < 20) { ... } warna { ... }</code></li>
-        <li><strong>While Loop:</strong> <code>jabtak (y > 0) { ... }</code></li>
-        <li><strong>Functions:</strong> 
-          <code>kaam sumFunc(a, b) { wapas (a + b); }</code>
-        </li>
-        <li><strong>Logical Ops:</strong> <code>aur</code> (&&), <code>ya</code> (||), <code>nahin</code> (!)</li>
+        <li><strong>Booleans:</strong> <code>sahi_hai_be</code>, <code>jhuth</code></li>
+        <li><strong>Conditionals:</strong> <code>agar ... warna</code> with chained <code>warna agar</code></li>
+        <li><strong>Loops:</strong> <code>jabtak</code> (while), <code>ginnati</code> (for), <code>ke_liye (value in items)</code> (foreach)</li>
+        <li><strong>Switching:</strong> <code>chuno (expr) { case ... warna_case ... }</code></li>
+        <li><strong>Functions:</strong> defaults, <code>baaki</code> varargs, anonymous <code>kaam (...) { ... }</code></li>
+        <li><strong>Collections:</strong> lists + helpers (<code>push</code>, <code>pop</code>, <code>length</code>) aur dictionaries/`dhacha` records with <code>rakho</code>/<code>nikalo</code></li>
+        <li><strong>Exceptions:</strong> <code>pakdo { ... } chhoddo (err) { ... }</code> and <code>chhoddo(expr);</code> throws</li>
+        <li><strong>Modules:</strong> <code>lao "mera_module.aak";</code> for reuse</li>
+        <li><strong>Built-ins:</strong> math/string helpers (<code>abs</code>, <code>floor</code>, <code>join</code>, <code>split</code>), functional (<code>map</code>, <code>filter</code>, <code>reduce</code>), <code>random_number</code>, <code>current_time</code> aur zyada</li>
       </ul>
       <p>Here’s an example using all features:</p>
       <pre>
-badlo x = 10;
-badlo y = 5;
-dikhao("Initial x:");
-dikhao(x);
+dhacha Vyakti { naam, umar }
 
-
-jabtak (y > 0) {
-    dikhao(y);
-    y = y - 1;
+kaam banakar(naam, umar = 18) {
+    wapas Vyakti { naam: naam, umar: umar };
 }
 
-kaam testFunc(a, b) {
-    wapas (a + b);
+badlo hero = banakar("Adarsh", 24);
+badlo nums = [1, 2, 3];
+
+ginnati (badlo i = 0; i < length(nums); i = i + 1) {
+    dikhao(nums[i]);
 }
 
-badlo result = testFunc(x, 7);
-dikhao("Result of testFunc(x, 7):");
-dikhao(result);
+ke_liye (badlo value in nums) {
+    dikhao(value);
+}
+
+pakdo {
+    chhoddo("demo error");
+} chhoddo (err) {
+    dikhao(err);
+}
+
+badlo doubled = map(kaam (value) { wapas value * 2; }, nums);
+dikhao(doubled);
       </pre>
       <p>Try pasting the snippet above into the editor, then click "Run Code".</p>
     </div>
@@ -188,7 +202,7 @@ def run_code():
         print("Your code was:\n")
         print(source_code)
 
-    except Exception as e:
+    except (AdarshRuntimeError, AdarshUserException, AdarshSemanticError) as e:
         output = f"Error: {e}"
     else:
         output = mystdout.getvalue()

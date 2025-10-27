@@ -2087,11 +2087,16 @@ def main():
         run_repl()
         return
 
-    filename = sys.argv[1]
-    with open(filename, 'r', encoding='utf-8') as f:
-        source_code = f.read()
+__all__ = _dedupe(
+    _tokens_all
+    + _lexer_all
+    + _ast_all
+    + _parser_all
+    + _semantics_all
+    + _runtime_all
+    + _pipeline_all
+)
 
-    adarshlang_compile_and_run(source_code)
 
 if __name__ == '__main__':
     main()

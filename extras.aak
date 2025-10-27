@@ -1,0 +1,5 @@
+kaam badhao(value, step = 1) {
+    wapas value + step;
+}
+
+dikhao("Extras module load ho gaya!");

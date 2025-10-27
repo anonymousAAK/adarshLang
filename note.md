@@ -1,40 +1,31 @@
-## AdarshLang Feature Guide
+AdarshLang ab support karta hai:
+Variable declarations and assignments (using badlo)
+Arithmetic expressions (+, -, *, /, parentheses)
+Comparison and Boolean operators (<, >, <=, >=, ==, !=, aur, ya, nahin)
+agar-warna statements (including warna agar chains)
+jabtak loops
+dikhao statements
+Simple function definitions (kaam) and returns (wapas)
+List literals ([...]) and indexing (expr[expr])
+Indexed assignment (expr[expr] = value)
+Loop control with bas (break) and aage_badho (continue)
+Built-in helpers such as length(expr) for sequences
+List helpers push(list, value) and pop(list)
+The compiler workflow is the same as before:
 
-### Core Syntax
-- **Variables:** Declare with `badlo`, reassign later by name.
-- **Expressions:** Supports arithmetic, comparison, and logical operators (`aur`, `ya`, `nahin`).
-- **Booleans:** `sahi_hai_be` (true) and `jhuth` (false).
-- **Printing:** `dikhao(expr);` writes to stdout.
-- **Conditionals:** `agar (...) { ... } warna { ... }` plus chained `warna agar` branches.
+- Variable declarations/assignments with `badlo`, arithmetic aur logical expressions.
+- Booleans (`sahi_hai_be`, `jhuth`), conditionals `agar/warna/warna agar`.
+- Teen tarah ke loops: `jabtak` (while), `ginnati` (counted for) aur `ke_liye` (foreach collections).
+- Loop control `bas` (break) aur `aage_badho` (continue).
+- `chuno` / `case` multi-branch switch expressions with optional `warna_case` default.
+- Functions via `kaam` including default arguments, `baaki` varargs aur anonymous `kaam (...) { ... }` expressions.
+- First-class functions: assign karo, pass karo, map/filter/reduce helpers ke saath use karo.
+- List literals, indexing/assignment aur list helpers (`length`, `push`, `pop`).
+- Dictionary/object literals `{ key: value }`, helpers `rakho`/`nikalo`, attribute access `obj.field`.
+- `dhacha` definitions for typed records with brace construction syntax.
+- Exception handling: `pakdo { ... } chhoddo (err) { ... }` try/catch plus `chhoddo(expr);` user throws.
+- Imports using `lao "dusra_file.aak";` to share code modules.
+- Extended builtin library: math (`abs`, `floor`, `ceil`), string helpers (`upper`, `lower`, `join`, `split`), list/functional helpers (`map`, `filter`, `reduce`), randomness/time (`random_number`, `current_time`) and more.
+- Interactive REPL: `python adarsh_lang_compiler.py --repl` (ya bina arguments) for quick experimentation.
 
-### Control Flow
-- **Loops:**
-  - `jabtak` while loops.
-  - `ginnati (init; condition; update)` counted loops.
-  - `ke_liye (badlo value in iterable)` foreach loops (also accepts the legacy colon separator).
-- **Loop Control:** `bas;` (break) and `aage_badho;` (continue).
-- **Switching:** `chuno (expr) { case ... warna_case ... }` with multiple match expressions per case.
-
-### Functions & Exceptions
-- **Functions:** `kaam naam(params) { ... }` with default values and `baaki` varargs. Anonymous `kaam (...) { ... }` works anywhere an expression is allowed.
-- **Returns:** `wapas expr;` or `wapas;` for void returns.
-- **Exceptions:** `pakdo { ... } chhoddo (err) { ... }` and user throws via `chhoddo(expr);`.
-
-### Data Structures
-- **Lists:** Literals (`[1, 2, 3]`), indexing, assignment, and helpers `length`, `push`, `pop`.
-- **Dictionaries:** `{ "key": value }` with helpers `rakho`, `nikalo`, and dotted attribute-style access.
-- **Dhacha Records:** `dhacha Vyakti { naam, umar };` and constructions like `Vyakti { naam: "Adi", umar: 21 }`.
-
-### Modules & Builtins
-- **Modules:** `lao "extras.aak";` loads other `.aak` files once per interpreter.
-- **Builtins:** Math (`abs`, `floor`, `ceil`), strings (`upper`, `lower`, `join`, `split`), collection utilities (`map`, `filter`, `reduce`, `rakho`, `nikalo`), randomness/time (`random_number`, `current_time`).
-
-### Deployment Tips
-- Import from `adarsh_lang` rather than the monolithic `adarsh_lang_compiler`—the latter now wraps the package for backwards compatibility.
-- The Flask web UI in `app.py` is deployment ready; set `FLASK_APP=app.py` locally or lean on the provided `vercel.json` for Vercel setups.
-- Bundle `extras.aak` and sample programs (`test_*.aak`) with deployments so demonstrations cover every feature.
-- Use the REPL (`python adarsh_lang_compiler.py --repl`) for quick health checks after deployment.
-
-### Debugging Hints
-- Run `python -m py_compile adarsh_lang_compiler.py` to validate imports and module wiring.
-- Execute regression suites listed in `TEST_README.md` to confirm runtime behaviour before shipping updates.
+Compiler pipeline wahi hai: lexer -> parser -> semantic analyzer -> interpreter with runtime errors as `AdarshRuntimeError` aur user exceptions propagate hote hain.

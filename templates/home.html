@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AdarshLang Online Runner</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;600;700&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+  <div class="container py-5">
+    <section class="hero text-white">
+      <h1 class="display-4">AdarshLang Online Runner</h1>
+      <p class="lead mb-0">Experiment with the Hinglish-flavoured programming language, run snippets instantly, and explore the full feature set without leaving your browser.</p>
+    </section>
+
+    <div class="row">
+      <div class="col-lg-8">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h2 class="h4 mb-0">Write &amp; Run</h2>
+              <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="sampleMenu" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Load Sample
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="sampleMenu">
+                  {% for sample in sample_programs %}
+                    <button class="dropdown-item sample-option" type="button" data-source="{{ sample.source | tojson | safe }}">
+                      {{ sample.name }}
+                    </button>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+            <form id="runner-form">
+              <div class="form-group">
+                <label for="source_code"><strong>Enter your AdarshLang code:</strong></label>
+                <textarea id="source_code" name="source_code" class="form-control" rows="12">{{ default_code }}</textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-lg">Run Code</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mt-4">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h2 class="h4 mb-0">Runtime Output</h2>
+              <span id="run-status" class="badge badge-pill badge-secondary">Idle</span>
+            </div>
+            <ul class="nav nav-tabs output-tabs" id="outputTabs" role="tablist">
+              <li class="nav-item">
+                <a class="nav-link active" id="stdout-tab" data-toggle="tab" href="#stdout" role="tab" aria-controls="stdout" aria-selected="true">Output</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" id="stderr-tab" data-toggle="tab" href="#stderr" role="tab" aria-controls="stderr" aria-selected="false">Errors</a>
+              </li>
+            </ul>
+            <div class="tab-content pt-3" id="outputTabContent">
+              <div class="tab-pane fade show active" id="stdout" role="tabpanel" aria-labelledby="stdout-tab">
+                <div id="stdout-pane" class="output-pane"></div>
+              </div>
+              <div class="tab-pane fade" id="stderr" role="tabpanel" aria-labelledby="stderr-tab">
+                <div id="stderr-pane" class="output-pane"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-4 mt-4 mt-lg-0">
+        <div class="card shadow-sm getting-started">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+              <h2 class="h5 mb-0">Getting Started</h2>
+              <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#gettingStartedCollapse" aria-expanded="true" aria-controls="gettingStartedCollapse">
+                Quick setup
+              </button>
+            </div>
+            <div class="collapse show" id="gettingStartedCollapse">
+              <p class="mt-3 mb-2 text-muted">Run AdarshLang locally in two commands:</p>
+              <ul class="list-group list-group-flush mb-3">
+                {% for command in getting_started_commands %}
+                  <li class="list-group-item"><code>{{ command }}</code></li>
+                {% endfor %}
+              </ul>
+              <ul class="mb-0 pl-3">
+                {% for tip in getting_started_tips %}
+                  <li>{{ tip }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mt-4">
+          <div class="card-body">
+            <h2 class="h5">Feature Highlights</h2>
+            <p class="text-muted">Dive deeper via the <a href="{{ reference_url }}" target="_blank" rel="noopener">full language reference</a>.</p>
+            <ul class="pl-3 mb-0">
+              {% for feature in features %}
+                <li class="mb-2"><strong>{{ feature.title }}:</strong> {{ feature.description | safe }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mt-5">
+      <div class="card-body">
+        <h2 class="h4">Tutorial Tracks</h2>
+        <ul class="nav nav-pills mb-3" id="tutorialTab" role="tablist">
+          {% for track in tutorial_tracks %}
+            <li class="nav-item">
+              <a class="nav-link {% if loop.first %}active{% endif %}" id="{{ track.id }}-tab" data-toggle="tab" href="#{{ track.id }}" role="tab" aria-controls="{{ track.id }}" aria-selected="{{ 'true' if loop.first else 'false' }}">
+                {{ track.label }}
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+        <div class="tab-content" id="tutorialTabContent">
+          {% for track in tutorial_tracks %}
+            <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="{{ track.id }}" role="tabpanel" aria-labelledby="{{ track.id }}-tab">
+              <p class="mb-0">{{ track.body }}</p>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mt-4">
+      <div class="card-body">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between">
+          <div>
+            <h2 class="h4 mb-3">Sample Programs Gallery</h2>
+            <p class="text-muted mb-0">Instantly load curated `.aak` examples straight into the editor.</p>
+          </div>
+        </div>
+        <div class="row mt-4">
+          {% for sample in sample_programs %}
+            <div class="col-md-6 col-lg-3 mb-4">
+              <div class="card sample-card h-100">
+                <div class="card-body d-flex flex-column">
+                  <h3 class="h5">{{ sample.name }}</h3>
+                  <p class="flex-grow-1 text-muted">{{ sample.description }}</p>
+                  <button class="btn btn-outline-primary mt-3 sample-option" type="button" data-source="{{ sample.source | tojson | safe }}">
+                    Load into editor
+                  </button>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mt-4">
+      <div class="card-body">
+        <h2 class="h4">All-in-One Example</h2>
+        <p class="text-muted">This snippet exercises records, loops, built-ins, and error handling without the malformed markup from earlier revisions.</p>
+        <pre class="code-sample"><code>dhacha Vyakti { naam, umar }
+
+kaam banakar(naam, umar = 18) {
+    wapas Vyakti { naam: naam, umar: umar };
+}
+
+badlo hero = banakar("Adarsh", 24);
+badlo nums = [1, 2, 3];
+
+jabtak (length(nums) < 6) {
+    push(nums, length(nums) + 1);
+}
+
+dikhao(hero.naam + " has " + length(nums) + " numbers");
+
+pakdo {
+    chhoddo("demo error");
+} chhoddo (err) {
+    dikhao("Recovered from: " + err);
+}</code></pre>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <p class="mb-1">Made with ❤️ by the AdarshLang community.</p>
+      <p class="mb-0">
+        <a href="{{ repo_url }}" target="_blank" rel="noopener">GitHub Repository</a>
+        ·
+        <a href="{{ reference_url }}" target="_blank" rel="noopener">Language Docs</a>
+        ·
+        <a href="https://vercel.com/docs" target="_blank" rel="noopener">Deployment tips</a>
+      </p>
+    </footer>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  <script>
+    (function () {
+      const form = document.getElementById('runner-form');
+      const textarea = document.getElementById('source_code');
+      const stdoutPane = document.getElementById('stdout-pane');
+      const stderrPane = document.getElementById('stderr-pane');
+      const statusBadge = document.getElementById('run-status');
+
+      function setStatus(text, variant) {
+        statusBadge.textContent = text;
+        statusBadge.className = 'badge badge-pill badge-' + variant;
+      }
+
+      function handleSampleClick(event) {
+        const source = event.currentTarget.getAttribute('data-source');
+        if (!source) {
+          return;
+        }
+        textarea.value = JSON.parse(source);
+        setStatus('Sample loaded', 'info');
+      }
+
+      document.querySelectorAll('.sample-option').forEach(function (button) {
+        button.addEventListener('click', handleSampleClick);
+      });
+
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        setStatus('Running…', 'primary');
+        stdoutPane.textContent = '';
+        stderrPane.textContent = '';
+
+        fetch('{{ url_for('run_code') }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ source_code: textarea.value })
+        })
+          .then(function (response) { return response.json(); })
+          .then(function (payload) {
+            stdoutPane.textContent = payload.output || '';
+            stderrPane.textContent = payload.error || '';
+
+            if (payload.success) {
+              setStatus('Success', 'success');
+            } else if (payload.error) {
+              setStatus('Error', 'danger');
+              $('#outputTabs a[href="#stderr"]').tab('show');
+            } else {
+              setStatus('Completed', 'secondary');
+            }
+          })
+          .catch(function (error) {
+            stderrPane.textContent = 'Failed to reach the server: ' + error;
+            setStatus('Network error', 'warning');
+            $('#outputTabs a[href="#stderr"]').tab('show');
+          });
+      });
+    })();
+  </script>
+</body>
+</html>

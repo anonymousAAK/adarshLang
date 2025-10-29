@@ -50,6 +50,9 @@ HOME_PAGE_TEMPLATE = """
       margin-top: 3rem; 
       color: #999;
     }
+    .nav-tabs {
+        margin-bottom: 1rem;
+    }
   </style>
 </head>
 <body>
@@ -57,99 +60,157 @@ HOME_PAGE_TEMPLATE = """
 <div class="container">
   <h1 class="header-text text-center">AdarshLang Online Runner</h1>
 
-  <!-- Code Editor Card -->
-  <div class="card shadow-sm">
-    <div class="card-body">
-      <form action="/run" method="post">
-        <div class="form-group">
-          <label for="source_code"><strong>Enter your AdarshLang code:</strong></label>
-          <textarea id="source_code" name="source_code" rows="10" 
-                    placeholder="badlo x = 10;&#10;dikhao(x);"></textarea>
+  <ul class="nav nav-tabs" id="myTab" role="tablist">
+    <li class="nav-item">
+      <a class="nav-link active" id="editor-tab" data-toggle="tab" href="#editor" role="tab" aria-controls="editor" aria-selected="true">Code Editor</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" id="docs-tab" data-toggle="tab" href="#docs" role="tab" aria-controls="docs" aria-selected="false">Documentation</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" id="examples-tab" data-toggle="tab" href="#examples" role="tab" aria-controls="examples" aria-selected="false">Examples</a>
+    </li>
+  </ul>
+
+  <div class="tab-content" id="myTabContent">
+    <div class="tab-pane fade show active" id="editor" role="tabpanel" aria-labelledby="editor-tab">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <form action="/run" method="post">
+            <div class="form-group">
+              <label for="source_code"><strong>Enter your AdarshLang code:</strong></label>
+              <textarea id="source_code" name="source_code" rows="10"
+                        placeholder="badlo x = 10;&#10;dikhao(x);"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Run Code</button>
+          </form>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Run Code</button>
-      </form>
+      </div>
     </div>
-  </div>
-
-  <!-- Tutorial Section -->
-  <div class="card shadow-sm mt-4">
-    <div class="card-body">
-      <h2>AdarshLang Quick Tutorial</h2>
-      <p>AdarshLang is a Hinglish-inspired language with a comedic twist. Below is a summary of its features:</p>
-      <ul>
-        <li><strong>Variables:</strong> <code>badlo x = 10;</code> aur expressions</li>
-        <li><strong>Printing:</strong> <code>dikhao(x);</code></li>
-        <li><strong>Booleans:</strong> <code>sahi_hai_be</code>, <code>jhuth</code></li>
-        <li><strong>Conditionals:</strong> <code>agar ... warna</code> with chained <code>warna agar</code></li>
-        <li><strong>Loops:</strong> <code>jabtak</code> (while), <code>ginnati</code> (for), <code>ke_liye</code> (foreach)</li>
-        <li><strong>Switching:</strong> <code>chuno (expr) { case ... warna_case ... }</code></li>
-        <li><strong>Functions:</strong> defaults, <code>baaki</code> varargs, anonymous <code>kaam (...) { ... }</code></li>
-        <li><strong>Collections:</strong> lists + helpers (<code>push</code>, <code>pop</code>, <code>length</code>) aur dictionaries/`dhacha` records with <code>rakho</code>/<code>nikalo</code></li>
-        <li><strong>Exceptions:</strong> <code>pakdo { ... } chhoddo (err) { ... }</code> and <code>chhoddo(expr);</code> throws</li>
-        <li><strong>Modules:</strong> <code>lao "mera_module.aak";</code> for reuse</li>
-        <li><strong>Built-ins:</strong> math/string helpers (<code>abs</code>, <code>floor</code>, <code>join</code>, <code>split</code>), functional (<code>map</code>, <code>filter</code>, <code>reduce</code>), <code>random_number</code>, <code>current_time</code> aur zyada</li>
-      </ul>
-      <p>Here’s an example using all features:</p>
-      <pre>
-dhacha Vyakti { naam, umar }
-
-kaam banakar(naam, umar = 18) {
-    wapas Vyakti { naam: naam, umar: umar };
-}
-
-badlo hero = banakar("Adarsh", 24);
-badlo nums = [1, 2, 3];
-
-ginnati (badlo i = 0; i < length(nums); i = i + 1) {
-    dikhao(nums[i]);
-        <li><strong>Booleans:</strong> <code>sahi_hai_be</code> (true), <code>jhuth</code> (false)</li>
-        <li><strong>Conditionals:</strong> <code>agar (x < 20) { ... } warna { ... }</code> and chained <code>warna agar</code> blocks</li>
-        <li><strong>While Loop:</strong> <code>jabtak (y > 0) { ... }</code></li>
-        <li><strong>Functions:</strong>
-          <code>kaam sumFunc(a, b) { wapas (a + b); }</code>
-        </li>
-        <li><strong>Lists:</strong> <code>badlo nums = [1, 2, 3];</code> with indexing via <code>nums[0]</code></li>
-        <li><strong>List updates:</strong> mutate entries with <code>nums[1] = 99;</code></li>
-        <li><strong>Loop control:</strong> <code>bas;</code> breaks and <code>aage_badho;</code> continues inside <code>jabtak</code></li>
-        <li><strong>Built-ins:</strong> <code>length(nums)</code>, <code>push(nums, value)</code>, and <code>pop(nums)</code></li>
-        <li><strong>Logical Ops:</strong> <code>aur</code> (&&), <code>ya</code> (||), <code>nahin</code> (!)</li>
-      </ul>
-      <p>Here’s an example using all features:</p>
-      <pre>
-badlo x = 10;
-badlo nums = [1, 2, 3];
-push(nums, 42);
-badlo y = length(nums);
-
-jabtak (y > 0) {
-    y = y - 1;
-    agar (y == 2) {
-        aage_badho;
-    }
-    dikhao(nums[y]);
-    agar (y == 0) {
-        bas;
-    }
-}
-
-pakdo {
-    chhoddo("demo error");
-} chhoddo (err) {
-    dikhao(err);
-}
-
-badlo doubled = map(kaam (value) { wapas value * 2; }, nums);
-dikhao(doubled);
-      </pre>
-      <p>Try pasting the snippet above into the editor, then click "Run Code".</p>
+    <div class="tab-pane fade" id="docs" role="tabpanel" aria-labelledby="docs-tab">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2>AdarshLang Documentation</h2>
+                <p>AdarshLang is a Hinglish-inspired programming language built for fun. Below is a summary of its features:</p>
+                <table class="table table-bordered">
+                  <thead>
+                    <tr>
+                      <th>Feature</th>
+                      <th>Syntax</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Variables</td>
+                      <td><code>badlo x = 42;</code></td>
+                      <td>Implicit declarations with <code>badlo</code> and later assignments.</td>
+                    </tr>
+                    <tr>
+                      <td>Arithmetic & logic</td>
+                      <td><code>+ - * /</code>, comparisons, <code>aur</code>/<code>ya</code>/<code>nahin</code></td>
+                      <td>Uses standard Python semantics.</td>
+                    </tr>
+                    <tr>
+                      <td>Booleans</td>
+                      <td><code>sahi_hai_be</code>, <code>jhuth</code></td>
+                      <td>Aliases of <code>True</code>/<code>False</code>.</td>
+                    </tr>
+                    <tr>
+                      <td>Printing</td>
+                      <td><code>dikhao(expr);</code></td>
+                      <td>Sends values to stdout.</td>
+                    </tr>
+                    <tr>
+                      <td>Conditionals</td>
+                      <td><code>agar (...) { ... } warna { ... }</code></td>
+                      <td>Supports chained <code>warna agar</code>.</td>
+                    </tr>
+                    <tr>
+                      <td>While loops</td>
+                      <td><code>jabtak (condition) { ... }</code></td>
+                      <td>Break with <code>bas;</code>, continue with <code>aage_badho;</code>.</td>
+                    </tr>
+                    <tr>
+                      <td>Counted loops</td>
+                      <td><code>ginnati (init; condition; update) { ... }</code></td>
+                      <td>Traditional C-style loop.</td>
+                    </tr>
+                    <tr>
+                      <td>Foreach loops</td>
+                      <td><code>ke_liye (badlo value in items) { ... }</code></td>
+                      <td>Accepts either <code>in</code> or legacy colon separator.</td>
+                    </tr>
+                    <tr>
+                      <td>Switch</td>
+                      <td><code>chuno (expr) { case ... warna_case ... }</code></td>
+                      <td>Multiple matches per case allowed.</td>
+                    </tr>
+                    <tr>
+                      <td>Functions</td>
+                      <td><code>kaam naam(params) { ... }</code></td>
+                      <td>Default args, <code>baaki</code> varargs, anonymous <code>kaam (...)</code> expressions.</td>
+                    </tr>
+                    <tr>
+                      <td>Returns</td>
+                      <td><code>wapas expr;</code></td>
+                      <td><code>wapas;</code> is valid for early exit without a value.</td>
+                    </tr>
+                    <tr>
+                      <td>Lists</td>
+                      <td><code>[1, 2, 3]</code></td>
+                      <td>Supports indexing, assignment, <code>push</code>, <code>pop</code>, <code>length</code>.</td>
+                    </tr>
+                    <tr>
+                      <td>Dictionaries</td>
+                      <td><code>{ "key": value }</code></td>
+                      <td>Works with <code>rakho</code>, <code>nikalo</code>, and attribute access (<code>obj.field</code>).</td>
+                    </tr>
+                    <tr>
+                      <td>Dhacha records</td>
+                      <td><code>dhacha Vyakti { naam, umar };</code></td>
+                      <td>Construct with <code>Vyakti { naam: "Adarsh", umar: 24 }</code>.</td>
+                    </tr>
+                    <tr>
+                      <td>Exceptions</td>
+                      <td><code>pakdo { ... } chhoddo (err) { ... }</code></td>
+                      <td>Throw via <code>chhoddo(expr);</code>.</td>
+                    </tr>
+                    <tr>
+                      <td>Modules</td>
+                      <td><code>lao "extras.aak";</code></td>
+                      <td>Loads and executes other source files once.</td>
+                    </tr>
+                    <tr>
+                      <td>Builtins</td>
+                      <td><code>abs</code>, <code>floor</code>, <code>ceil</code>, <code>upper</code>, <code>lower</code>, <code>join</code>, _
+                      <code>split</code>, <code>map</code>, <code>filter</code>, <code>reduce</code>, _
+                      <code>random_number</code>, <code>current_time</code></td>
+                      <td>Register automatically in every runtime.</td>
+                    </tr>
+                  </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="tab-pane fade" id="examples" role="tabpanel" aria-labelledby="examples-tab">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2>AdarshLang Examples</h2>
+                <p>Coming soon...</p>
+            </div>
+        </div>
     </div>
   </div>
 
   <div class="footer">
-    <p>AdarshLang </p>
+    <p>AdarshLang</p>
   </div>
 </div>
 
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>
 """
@@ -221,10 +282,6 @@ def run_code():
     try:
         # Compile and run the AdarshLang code
         adarshlang_compile_and_run(source_code)
-
-        # DEMO fallback block:
-        print("Your code was:\n")
-        print(source_code)
 
     except (AdarshRuntimeError, AdarshUserException, AdarshSemanticError) as e:
         output = f"Error: {e}"

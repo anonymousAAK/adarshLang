@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template_string
+from flask import Flask, request, render_template_string, jsonify
 import sys
 from io import StringIO
 from adarsh_lang_compiler import (
@@ -56,6 +56,10 @@ HOME_PAGE_TEMPLATE = """
     .snippet-section {
       margin-top: 1rem;
     }
+    .error-output {
+      background: #fdecea !important;
+      color: #c0392b;
+    }
   </style>
 </head>
 <body>
@@ -66,14 +70,23 @@ HOME_PAGE_TEMPLATE = """
   <!-- Code Editor Card -->
   <div class="card shadow-sm">
     <div class="card-body">
-      <form action="/run" method="post" id="codeForm">
+      <form id="codeForm" onsubmit="runCode(event)">
         <div class="form-group">
           <label for="source_code"><strong>Enter your AdarshLang code:</strong></label>
           <textarea id="source_code" name="source_code" rows="14"
                     placeholder="badlo x = 10;&#10;dikhao(x);"></textarea>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Run Code</button>
+        <button type="submit" id="run-btn" class="btn btn-primary btn-block">&#9654;&nbsp; Run Code</button>
       </form>
+
+      <!-- Inline Output -->
+      <div id="output-card" class="mt-3" style="display:none;">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <strong id="output-label">Output</strong>
+          <button class="btn btn-sm btn-outline-secondary" onclick="clearOutput()">&#10005; Clear</button>
+        </div>
+        <pre id="output-pre" style="min-height:60px;max-height:420px;overflow-y:auto;"></pre>
+      </div>
 
       <!-- One-click snippet buttons -->
       <div class="snippet-section">
@@ -873,7 +886,54 @@ dikhao("\\n=== Sab features kaam kar rahe hain! ===");`
 
 function loadSnippet(name) {
     document.getElementById('source_code').value = snippets[name];
-    document.getElementById('source_code').scrollIntoView({behavior: 'smooth'});
+    clearOutput();
+    document.getElementById('source_code').focus();
+}
+
+async function runCode(event) {
+    event.preventDefault();
+    var code = document.getElementById('source_code').value;
+    var btn = document.getElementById('run-btn');
+    var card = document.getElementById('output-card');
+    var pre = document.getElementById('output-pre');
+    var label = document.getElementById('output-label');
+
+    btn.textContent = 'Running...';
+    btn.disabled = true;
+    pre.className = '';
+    pre.textContent = '';
+    card.style.display = 'block';
+    label.textContent = 'Output';
+
+    try {
+        var resp = await fetch('/run_json', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({source_code: code})
+        });
+        var data = await resp.json();
+        if (data.error) {
+            pre.className = 'error-output';
+            label.textContent = 'Error';
+            pre.textContent = data.output;
+        } else {
+            pre.textContent = data.output || '(no output)';
+        }
+    } catch (err) {
+        pre.className = 'error-output';
+        label.textContent = 'Error';
+        pre.textContent = 'Network error: ' + err.message;
+    } finally {
+        btn.textContent = '\u25b6\u00a0 Run Code';
+        btn.disabled = false;
+        pre.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    }
+}
+
+function clearOutput() {
+    var card = document.getElementById('output-card');
+    card.style.display = 'none';
+    document.getElementById('output-pre').textContent = '';
 }
 </script>
 
@@ -954,6 +1014,29 @@ def run_code():
         sys.stdout = old_stdout
 
     return render_template_string(RESULT_PAGE_TEMPLATE, output=output)
+
+@app.route("/run_json", methods=["POST"])
+def run_code_json():
+    data = request.get_json(force=True)
+    source_code = data.get("source_code", "")
+
+    old_stdout = sys.stdout
+    mystdout = StringIO()
+    sys.stdout = mystdout
+
+    error = False
+    try:
+        adarshlang_compile_and_run(source_code)
+    except (AdarshRuntimeError, AdarshUserException, AdarshSemanticError) as e:
+        error = True
+        output = str(e)
+    else:
+        output = mystdout.getvalue()
+    finally:
+        sys.stdout = old_stdout
+
+    return jsonify({"output": output, "error": error})
+
 
 if __name__ == "__main__":
     app.run(debug=True)

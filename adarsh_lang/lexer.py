@@ -83,8 +83,16 @@ class AdarshLexer:
         start_col = self.column
         self.advance()  # skip the initial quote
         result = ''
+        escape_map = {'n': '\n', 't': '\t', '\\': '\\', '"': '"', 'r': '\r', '0': '\0'}
         while self.current_char is not None and self.current_char != '"':
-            result += self.current_char
+            if self.current_char == '\\':
+                self.advance()
+                if self.current_char is not None and self.current_char in escape_map:
+                    result += escape_map[self.current_char]
+                else:
+                    result += '\\' + (self.current_char or '')
+            else:
+                result += self.current_char
             self.advance()
         self.advance()  # skip the closing quote
         return AdarshToken(AdarshTokenType.STRING, result, start_line, start_col)

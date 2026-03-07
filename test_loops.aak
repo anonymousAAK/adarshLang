@@ -5,8 +5,9 @@ ginnati (badlo i = 0; i < 10; i = i + 1) {
         aage_badho;
     }
     push(collected, i);
+}
+
 badlo counter = 0;
-badlo collected = [];
 
 jabtak (counter < 10) {
     counter = counter + 1;
@@ -14,7 +15,7 @@ jabtak (counter < 10) {
         aage_badho;
     }
     push(collected, counter);
-    agar (length(collected) == 4) {
+    agar (length(collected) == 13) {
         bas;
     }
 }

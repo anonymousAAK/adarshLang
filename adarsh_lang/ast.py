@@ -50,6 +50,33 @@ class AdarshStringLiteralNode(AdarshASTNode):
         self.value = value
 
 
+class AdarshNullLiteralNode(AdarshASTNode):
+    pass
+
+
+class AdarshCompoundAssignNode(AdarshASTNode):
+    def __init__(self, var_name, op, expr):
+        self.var_name = var_name
+        self.op = op
+        self.expr = expr
+
+
+class AdarshIndexCompoundAssignNode(AdarshASTNode):
+    def __init__(self, collection, index_expr, op, value_expr):
+        self.collection = collection
+        self.index_expr = index_expr
+        self.op = op
+        self.value_expr = value_expr
+
+
+class AdarshAttributeCompoundAssignNode(AdarshASTNode):
+    def __init__(self, target, attribute, op, value_expr):
+        self.target = target
+        self.attribute = attribute
+        self.op = op
+        self.value_expr = value_expr
+
+
 class AdarshListLiteralNode(AdarshASTNode):
     def __init__(self, elements):
         self.elements = elements

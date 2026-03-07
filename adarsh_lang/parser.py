@@ -4,11 +4,13 @@ from .ast import (
     AdarshAssignNode,
     AdarshAttributeAccessNode,
     AdarshAttributeAssignNode,
+    AdarshAttributeCompoundAssignNode,
     AdarshBinOpNode,
     AdarshBlockNode,
     AdarshBoolLiteralNode,
     AdarshBreakNode,
     AdarshCallNode,
+    AdarshCompoundAssignNode,
     AdarshContinueNode,
     AdarshDictLiteralNode,
     AdarshDhachaConstructNode,
@@ -21,8 +23,10 @@ from .ast import (
     AdarshImportNode,
     AdarshIndexAccessNode,
     AdarshIndexAssignNode,
+    AdarshIndexCompoundAssignNode,
     AdarshKaamDefNode,
     AdarshListLiteralNode,
+    AdarshNullLiteralNode,
     AdarshNumLiteralNode,
     AdarshParam,
     AdarshProgramNode,
@@ -39,6 +43,22 @@ from .ast import (
 )
 from .lexer import AdarshToken
 from .tokens import AdarshTokenType
+
+COMPOUND_ASSIGN_TOKENS = {
+    AdarshTokenType.PLUS_ASSIGN,
+    AdarshTokenType.MINUS_ASSIGN,
+    AdarshTokenType.MUL_ASSIGN,
+    AdarshTokenType.DIV_ASSIGN,
+    AdarshTokenType.MOD_ASSIGN,
+}
+
+COMPOUND_ASSIGN_OP_MAP = {
+    AdarshTokenType.PLUS_ASSIGN: '+',
+    AdarshTokenType.MINUS_ASSIGN: '-',
+    AdarshTokenType.MUL_ASSIGN: '*',
+    AdarshTokenType.DIV_ASSIGN: '/',
+    AdarshTokenType.MOD_ASSIGN: '%',
+}
 
 
 class AdarshParserError(Exception):
@@ -218,6 +238,18 @@ class AdarshParser:
             if isinstance(expr, AdarshAttributeAccessNode):
                 return AdarshAttributeAssignNode(expr.target, expr.attribute, right_expr)
             raise AdarshParserError("Invalid assignment target in AdarshLang.")
+        if self.current_token.type in COMPOUND_ASSIGN_TOKENS:
+            op_token = self.current_token.type
+            op = COMPOUND_ASSIGN_OP_MAP[op_token]
+            self.eat(op_token)
+            right_expr = self.parse_expression()
+            if isinstance(expr, AdarshVarReferenceNode):
+                return AdarshCompoundAssignNode(expr.var_name, op, right_expr)
+            if isinstance(expr, AdarshIndexAccessNode):
+                return AdarshIndexCompoundAssignNode(expr.collection, expr.index_expr, op, right_expr)
+            if isinstance(expr, AdarshAttributeAccessNode):
+                return AdarshAttributeCompoundAssignNode(expr.target, expr.attribute, op, right_expr)
+            raise AdarshParserError("Invalid compound assignment target in AdarshLang.")
         return expr
 
     def parse_expression(self):
@@ -275,7 +307,7 @@ class AdarshParser:
 
     def parse_factor(self):
         node = self.parse_unary()
-        while self.current_token.type in (AdarshTokenType.MUL, AdarshTokenType.DIV):
+        while self.current_token.type in (AdarshTokenType.MUL, AdarshTokenType.DIV, AdarshTokenType.MOD):
             op = self.current_token.type
             self.eat(op)
             right = self.parse_unary()
@@ -289,7 +321,16 @@ class AdarshParser:
             factor = self.parse_unary()
             return AdarshUnaryOpNode(op, factor)
         else:
-            return self.parse_postfix()
+            return self.parse_power()
+
+    def parse_power(self):
+        node = self.parse_postfix()
+        if self.current_token.type == AdarshTokenType.POWER:
+            op = self.current_token.type
+            self.eat(op)
+            right = self.parse_unary()
+            node = AdarshBinOpNode(node, op, right)
+        return node
 
     def parse_postfix(self):
         node = self.parse_primary()
@@ -334,6 +375,9 @@ class AdarshParser:
         elif token.type == AdarshTokenType.JHUTH:
             self.eat(AdarshTokenType.JHUTH)
             node = AdarshBoolLiteralNode(False)
+        elif token.type == AdarshTokenType.KHALI:
+            self.eat(AdarshTokenType.KHALI)
+            node = AdarshNullLiteralNode()
         elif token.type == AdarshTokenType.STRING:
             self.eat(AdarshTokenType.STRING)
             node = AdarshStringLiteralNode(token.value)

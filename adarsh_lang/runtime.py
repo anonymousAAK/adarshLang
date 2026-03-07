@@ -161,6 +161,13 @@ class AdarshInterpreter:
         scope.set_variable(node.var_name, value)
         return value
 
+    def visit_AdarshCompoundAssignNode(self, node, scope):
+        current = scope.get_variable(node.var_name)
+        right = self.visit(node.expr, scope)
+        value = self._apply_op(node.op, current, right)
+        scope.set_variable(node.var_name, value)
+        return value
+
     def visit_AdarshIndexAssignNode(self, node, scope):
         collection = self.visit(node.collection, scope)
         index_value = self.visit(node.index_expr, scope)
@@ -179,6 +186,22 @@ class AdarshInterpreter:
             raise AdarshRuntimeError("Index out of range while assigning into collection in AdarshLang.")
         return value
 
+    def visit_AdarshIndexCompoundAssignNode(self, node, scope):
+        collection = self.visit(node.collection, scope)
+        index_value = self.visit(node.index_expr, scope)
+        right = self.visit(node.value_expr, scope)
+        try:
+            if isinstance(collection, dict):
+                current = collection[index_value]
+                collection[index_value] = self._apply_op(node.op, current, right)
+            else:
+                idx = self._normalize_index(index_value)
+                current = collection[idx]
+                collection[idx] = self._apply_op(node.op, current, right)
+        except (TypeError, KeyError, IndexError):
+            raise AdarshRuntimeError("Compound assignment failed on collection in AdarshLang.")
+        return collection[index_value] if isinstance(collection, dict) else collection[self._normalize_index(index_value)]
+
     def visit_AdarshAttributeAssignNode(self, node, scope):
         target = self.visit(node.target, scope)
         value = self.visit(node.value_expr, scope)
@@ -187,6 +210,28 @@ class AdarshInterpreter:
         else:
             raise AdarshRuntimeError("Attribute assignment only supported on dhacha objects or dictionaries in AdarshLang.")
         return value
+
+    def visit_AdarshAttributeCompoundAssignNode(self, node, scope):
+        target = self.visit(node.target, scope)
+        right = self.visit(node.value_expr, scope)
+        if isinstance(target, dict):
+            current = target.get(node.attribute)
+            target[node.attribute] = self._apply_op(node.op, current, right)
+            return target[node.attribute]
+        raise AdarshRuntimeError("Attribute compound assignment only supported on dhacha objects or dictionaries in AdarshLang.")
+
+    def _apply_op(self, op, left, right):
+        if op == '+':
+            return left + right
+        elif op == '-':
+            return left - right
+        elif op == '*':
+            return left * right
+        elif op == '/':
+            return left / right
+        elif op == '%':
+            return left % right
+        raise AdarshRuntimeError(f"Unknown operator '{op}' in AdarshLang.")
 
     def visit_AdarshBinOpNode(self, node, scope):
         left = self.visit(node.left, scope)
@@ -200,6 +245,10 @@ class AdarshInterpreter:
             return left * right
         elif op == '/':
             return left / right
+        elif op == '%':
+            return left % right
+        elif op == '**':
+            return left ** right
         elif op == '==':
             return left == right
         elif op == '!=':
@@ -236,6 +285,9 @@ class AdarshInterpreter:
 
     def visit_AdarshStringLiteralNode(self, node, scope):
         return node.value
+
+    def visit_AdarshNullLiteralNode(self, node, scope):
+        return None
 
     def visit_AdarshListLiteralNode(self, node, scope):
         return [self.visit(element, scope) for element in node.elements]
@@ -293,7 +345,12 @@ class AdarshInterpreter:
 
     def visit_AdarshDikhaoNode(self, node, scope):
         val = self.visit(node.expr, scope)
-        print(val)
+        if val is None:
+            print("khali")
+        elif isinstance(val, bool):
+            print("sahi_hai_be" if val else "jhuth")
+        else:
+            print(val)
         return None
 
     def visit_AdarshThrowNode(self, node, scope):
@@ -491,6 +548,8 @@ class AdarshInterpreter:
         self.global_scope.declare_variable(name)
         self.global_scope.set_variable(name, builtin)
 
+    # --- Original builtins ---
+
     def _builtin_length(self, interpreter, values, provided):
         return len(values[0])
 
@@ -617,6 +676,132 @@ class AdarshInterpreter:
     def _builtin_split(self, interpreter, values, provided):
         value, sep = values
         return str(value).split(str(sep))
+
+    # --- New builtins ---
+
+    def _builtin_prakar(self, interpreter, values, provided):
+        val = values[0]
+        if val is None:
+            return "khali"
+        if isinstance(val, bool):
+            return "boolean"
+        if isinstance(val, int):
+            return "number"
+        if isinstance(val, float):
+            return "number"
+        if isinstance(val, str):
+            return "string"
+        if isinstance(val, list):
+            return "list"
+        if isinstance(val, dict):
+            if '__type__' in val:
+                return "dhacha"
+            return "dict"
+        if isinstance(val, AdarshCallable):
+            return "kaam"
+        return "unknown"
+
+    def _builtin_shabdme(self, interpreter, values, provided):
+        val = values[0]
+        if val is None:
+            return "khali"
+        if isinstance(val, bool):
+            return "sahi_hai_be" if val else "jhuth"
+        return str(val)
+
+    def _builtin_sankhya(self, interpreter, values, provided):
+        val = values[0]
+        if isinstance(val, (int, float)):
+            return val
+        try:
+            if '.' in str(val):
+                return float(val)
+            return int(val)
+        except (ValueError, TypeError):
+            raise AdarshRuntimeError(f"Cannot convert '{val}' to number in AdarshLang.")
+
+    def _builtin_range(self, interpreter, values, provided):
+        start = values[0]
+        end = values[1]
+        step = values[2]
+        if not provided[1]:
+            return list(range(int(start)))
+        return list(range(int(start), int(end), int(step)))
+
+    def _builtin_keys(self, interpreter, values, provided):
+        target = values[0]
+        if not isinstance(target, dict):
+            raise AdarshRuntimeError("'keys' expects a dictionary in AdarshLang.")
+        return [k for k in target.keys() if k != '__type__']
+
+    def _builtin_values(self, interpreter, values, provided):
+        target = values[0]
+        if not isinstance(target, dict):
+            raise AdarshRuntimeError("'values' expects a dictionary in AdarshLang.")
+        return [v for k, v in target.items() if k != '__type__']
+
+    def _builtin_contains(self, interpreter, values, provided):
+        collection, search = values
+        if isinstance(collection, list):
+            return search in collection
+        if isinstance(collection, str):
+            return str(search) in collection
+        if isinstance(collection, dict):
+            return search in collection
+        raise AdarshRuntimeError("'contains' expects a list, string, or dictionary in AdarshLang.")
+
+    def _builtin_sort(self, interpreter, values, provided):
+        target = values[0]
+        if not isinstance(target, list):
+            raise AdarshRuntimeError("'sort' expects a list in AdarshLang.")
+        return sorted(target)
+
+    def _builtin_reverse(self, interpreter, values, provided):
+        target = values[0]
+        if isinstance(target, list):
+            return list(reversed(target))
+        if isinstance(target, str):
+            return target[::-1]
+        raise AdarshRuntimeError("'reverse' expects a list or string in AdarshLang.")
+
+    def _builtin_slice(self, interpreter, values, provided):
+        collection = values[0]
+        start = int(values[1])
+        end = values[2]
+        if end is None:
+            end = len(collection)
+        else:
+            end = int(end)
+        if isinstance(collection, (list, str)):
+            return collection[start:end]
+        raise AdarshRuntimeError("'slice' expects a list or string in AdarshLang.")
+
+    def _builtin_replace(self, interpreter, values, provided):
+        string, old, new = values
+        return str(string).replace(str(old), str(new))
+
+    def _builtin_trim(self, interpreter, values, provided):
+        return str(values[0]).strip()
+
+    def _builtin_find(self, interpreter, values, provided):
+        collection, search = values
+        if isinstance(collection, list):
+            try:
+                return collection.index(search)
+            except ValueError:
+                return -1
+        if isinstance(collection, str):
+            return collection.find(str(search))
+        raise AdarshRuntimeError("'find' expects a list or string in AdarshLang.")
+
+    def _builtin_min_val(self, interpreter, values, provided):
+        return min(values[0], values[1])
+
+    def _builtin_max_val(self, interpreter, values, provided):
+        return max(values[0], values[1])
+
+    def _builtin_round_val(self, interpreter, values, provided):
+        return round(values[0])
 
     def _normalize_index(self, index_value):
         if isinstance(index_value, bool):

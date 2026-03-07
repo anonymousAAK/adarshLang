@@ -30,13 +30,21 @@ class AdarshTokenType:
     LAO = 'LAO'            # lao
     DHACHA = 'DHACHA'      # dhacha
     BAAKI = 'BAAKI'        # baaki (varargs marker)
+    KHALI = 'KHALI'        # khali (null)
 
     # Operators
     PLUS = '+'
     MINUS = '-'
     MUL = '*'
     DIV = '/'
+    MOD = '%'
+    POWER = '**'
     ASSIGN = '='
+    PLUS_ASSIGN = '+='
+    MINUS_ASSIGN = '-='
+    MUL_ASSIGN = '*='
+    DIV_ASSIGN = '/='
+    MOD_ASSIGN = '%='
     EQ = '=='
     NEQ = '!='
     LT = '<'
@@ -81,6 +89,7 @@ HINGLISH_KEYWORDS = {
     'lao': AdarshTokenType.LAO,
     'dhacha': AdarshTokenType.DHACHA,
     'baaki': AdarshTokenType.BAAKI,
+    'khali': AdarshTokenType.KHALI,
 }
 
 
@@ -89,6 +98,7 @@ HINGLISH_OPERATORS = {
     '-': AdarshTokenType.MINUS,
     '*': AdarshTokenType.MUL,
     '/': AdarshTokenType.DIV,
+    '%': AdarshTokenType.MOD,
     '=': AdarshTokenType.ASSIGN,
     ';': AdarshTokenType.SEMI,
     ',': AdarshTokenType.COMMA,
@@ -105,6 +115,12 @@ HINGLISH_OPERATORS = {
 
 
 HINGLISH_MULTI_OPERATORS = {
+    '**': AdarshTokenType.POWER,
+    '+=': AdarshTokenType.PLUS_ASSIGN,
+    '-=': AdarshTokenType.MINUS_ASSIGN,
+    '*=': AdarshTokenType.MUL_ASSIGN,
+    '/=': AdarshTokenType.DIV_ASSIGN,
+    '%=': AdarshTokenType.MOD_ASSIGN,
     '==': AdarshTokenType.EQ,
     '!=': AdarshTokenType.NEQ,
     '<=': AdarshTokenType.LTE,

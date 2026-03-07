@@ -19,8 +19,7 @@ HOME_PAGE_TEMPLATE = """
 <head>
   <meta charset="UTF-8">
   <title>AdarshLang Online</title>
-  <!-- Bootstrap via CDN -->
-  <link rel="stylesheet" 
+  <link rel="stylesheet"
     href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <style>
     body {
@@ -40,14 +39,14 @@ HOME_PAGE_TEMPLATE = """
       margin-top: 2rem;
     }
     pre {
-      background: #eee; 
+      background: #eee;
       padding: 1rem;
-      white-space: pre-wrap;  
-      word-wrap: break-word; 
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
     .footer {
-      text-align: center; 
-      margin-top: 3rem; 
+      text-align: center;
+      margin-top: 3rem;
       color: #999;
     }
   </style>
@@ -63,7 +62,7 @@ HOME_PAGE_TEMPLATE = """
       <form action="/run" method="post">
         <div class="form-group">
           <label for="source_code"><strong>Enter your AdarshLang code:</strong></label>
-          <textarea id="source_code" name="source_code" rows="10" 
+          <textarea id="source_code" name="source_code" rows="10"
                     placeholder="badlo x = 10;&#10;dikhao(x);"></textarea>
         </div>
         <button type="submit" class="btn btn-primary btn-block">Run Code</button>
@@ -75,78 +74,99 @@ HOME_PAGE_TEMPLATE = """
   <div class="card shadow-sm mt-4">
     <div class="card-body">
       <h2>AdarshLang Quick Tutorial</h2>
-      <p>AdarshLang is a Hinglish-inspired language with a comedic twist. Below is a summary of its features:</p>
+      <p>AdarshLang is a Hinglish-inspired programming language. Below is a summary of its features:</p>
+
+      <h4>Basics</h4>
       <ul>
-        <li><strong>Variables:</strong> <code>badlo x = 10;</code> aur expressions</li>
+        <li><strong>Variables:</strong> <code>badlo x = 10;</code></li>
         <li><strong>Printing:</strong> <code>dikhao(x);</code></li>
-        <li><strong>Booleans:</strong> <code>sahi_hai_be</code>, <code>jhuth</code></li>
-        <li><strong>Conditionals:</strong> <code>agar ... warna</code> with chained <code>warna agar</code></li>
-        <li><strong>Loops:</strong> <code>jabtak</code> (while), <code>ginnati</code> (for), <code>ke_liye</code> (foreach)</li>
-        <li><strong>Switching:</strong> <code>chuno (expr) { case ... warna_case ... }</code></li>
-        <li><strong>Functions:</strong> defaults, <code>baaki</code> varargs, anonymous <code>kaam (...) { ... }</code></li>
-        <li><strong>Collections:</strong> lists + helpers (<code>push</code>, <code>pop</code>, <code>length</code>) aur dictionaries/`dhacha` records with <code>rakho</code>/<code>nikalo</code></li>
-        <li><strong>Exceptions:</strong> <code>pakdo { ... } chhoddo (err) { ... }</code> and <code>chhoddo(expr);</code> throws</li>
-        <li><strong>Modules:</strong> <code>lao "mera_module.aak";</code> for reuse</li>
-        <li><strong>Built-ins:</strong> math/string helpers (<code>abs</code>, <code>floor</code>, <code>join</code>, <code>split</code>), functional (<code>map</code>, <code>filter</code>, <code>reduce</code>), <code>random_number</code>, <code>current_time</code> aur zyada</li>
-      </ul>
-      <p>Here’s an example using all features:</p>
-      <pre>
-dhacha Vyakti { naam, umar }
-
-kaam banakar(naam, umar = 18) {
-    wapas Vyakti { naam: naam, umar: umar };
-}
-
-badlo hero = banakar("Adarsh", 24);
-badlo nums = [1, 2, 3];
-
-ginnati (badlo i = 0; i < length(nums); i = i + 1) {
-    dikhao(nums[i]);
         <li><strong>Booleans:</strong> <code>sahi_hai_be</code> (true), <code>jhuth</code> (false)</li>
-        <li><strong>Conditionals:</strong> <code>agar (x < 20) { ... } warna { ... }</code> and chained <code>warna agar</code> blocks</li>
-        <li><strong>While Loop:</strong> <code>jabtak (y > 0) { ... }</code></li>
-        <li><strong>Functions:</strong>
-          <code>kaam sumFunc(a, b) { wapas (a + b); }</code>
-        </li>
-        <li><strong>Lists:</strong> <code>badlo nums = [1, 2, 3];</code> with indexing via <code>nums[0]</code></li>
-        <li><strong>List updates:</strong> mutate entries with <code>nums[1] = 99;</code></li>
-        <li><strong>Loop control:</strong> <code>bas;</code> breaks and <code>aage_badho;</code> continues inside <code>jabtak</code></li>
-        <li><strong>Built-ins:</strong> <code>length(nums)</code>, <code>push(nums, value)</code>, and <code>pop(nums)</code></li>
-        <li><strong>Logical Ops:</strong> <code>aur</code> (&&), <code>ya</code> (||), <code>nahin</code> (!)</li>
+        <li><strong>Null:</strong> <code>khali</code></li>
+        <li><strong>Comments:</strong> <code># yeh comment hai</code></li>
       </ul>
-      <p>Here’s an example using all features:</p>
+
+      <h4>Operators</h4>
+      <ul>
+        <li><strong>Arithmetic:</strong> <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>%</code> (modulo), <code>**</code> (power)</li>
+        <li><strong>Comparison:</strong> <code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code></li>
+        <li><strong>Logical:</strong> <code>&amp;&amp;</code> (aur), <code>||</code> (ya), <code>!</code> (nahin)</li>
+        <li><strong>Compound Assignment:</strong> <code>+=</code>, <code>-=</code>, <code>*=</code>, <code>/=</code>, <code>%=</code></li>
+      </ul>
+
+      <h4>Control Flow</h4>
+      <ul>
+        <li><strong>If/Else:</strong> <code>agar (x &lt; 20) { ... } warna { ... }</code> with chained <code>warna agar</code></li>
+        <li><strong>While:</strong> <code>jabtak (y &gt; 0) { ... }</code></li>
+        <li><strong>For:</strong> <code>ginnati (badlo i = 0; i &lt; 10; i += 1) { ... }</code></li>
+        <li><strong>For-each:</strong> <code>ke_liye (badlo item in list) { ... }</code></li>
+        <li><strong>Switch:</strong> <code>chuno (expr) { case val: ... warna_case: ... }</code></li>
+        <li><strong>Break/Continue:</strong> <code>bas;</code> / <code>aage_badho;</code></li>
+      </ul>
+
+      <h4>Functions</h4>
+      <ul>
+        <li><strong>Define:</strong> <code>kaam add(a, b) { wapas a + b; }</code></li>
+        <li><strong>Default params:</strong> <code>kaam greet(naam, msg = "namaste") { ... }</code></li>
+        <li><strong>Varargs:</strong> <code>kaam total(baaki nums) { ... }</code></li>
+        <li><strong>Anonymous:</strong> <code>badlo fn = kaam (x) { wapas x * 2; };</code></li>
+      </ul>
+
+      <h4>Collections</h4>
+      <ul>
+        <li><strong>Lists:</strong> <code>[1, 2, 3]</code> with <code>push</code>, <code>pop</code>, <code>length</code>, <code>sort</code>, <code>reverse</code>, <code>slice</code></li>
+        <li><strong>Dicts:</strong> <code>{"key": "value"}</code> with <code>rakho</code>, <code>nikalo</code>, <code>keys</code>, <code>values</code></li>
+        <li><strong>Structs:</strong> <code>dhacha Vyakti { naam, umar };</code></li>
+      </ul>
+
+      <h4>Built-in Functions</h4>
+      <ul>
+        <li><strong>Math:</strong> <code>abs</code>, <code>floor</code>, <code>ceil</code>, <code>round_val</code>, <code>min_val</code>, <code>max_val</code>, <code>random_number</code></li>
+        <li><strong>Strings:</strong> <code>upper</code>, <code>lower</code>, <code>join</code>, <code>split</code>, <code>trim</code>, <code>replace</code>, <code>find</code></li>
+        <li><strong>Type:</strong> <code>prakar(x)</code> (type), <code>shabdme(42)</code> (toString), <code>sankhya("42")</code> (toNumber)</li>
+        <li><strong>Iteration:</strong> <code>range(start, end, step)</code>, <code>contains(list, val)</code></li>
+        <li><strong>Functional:</strong> <code>map</code>, <code>filter</code>, <code>reduce</code></li>
+        <li><strong>Other:</strong> <code>current_time()</code></li>
+      </ul>
+
+      <h4>Error Handling &amp; Modules</h4>
+      <ul>
+        <li><strong>Try/Catch:</strong> <code>pakdo { ... } chhoddo (err) { ... }</code></li>
+        <li><strong>Throw:</strong> <code>chhoddo("error message");</code></li>
+        <li><strong>Import:</strong> <code>lao "module.aak";</code></li>
+      </ul>
+
+      <h4>Example: FizzBuzz</h4>
       <pre>
-badlo x = 10;
-badlo nums = [1, 2, 3];
-push(nums, 42);
-badlo y = length(nums);
-
-jabtak (y > 0) {
-    y = y - 1;
-    agar (y == 2) {
-        aage_badho;
-    }
-    dikhao(nums[y]);
-    agar (y == 0) {
-        bas;
+ginnati (badlo i = 1; i &lt;= 15; i += 1) {
+    agar (i % 15 == 0) {
+        dikhao("FizzBuzz");
+    } warna agar (i % 3 == 0) {
+        dikhao("Fizz");
+    } warna agar (i % 5 == 0) {
+        dikhao("Buzz");
+    } warna {
+        dikhao(i);
     }
 }
-
-pakdo {
-    chhoddo("demo error");
-} chhoddo (err) {
-    dikhao(err);
-}
-
-badlo doubled = map(kaam (value) { wapas value * 2; }, nums);
-dikhao(doubled);
       </pre>
-      <p>Try pasting the snippet above into the editor, then click "Run Code".</p>
+
+      <h4>Example: Collections &amp; Functions</h4>
+      <pre>
+badlo nums = range(1, 6);
+badlo doubled = map(kaam (x) { wapas x ** 2; }, nums);
+dikhao(doubled);
+dikhao(sort(reverse(nums)));
+
+badlo person = {"naam": "Adarsh", "umar": 24};
+dikhao(keys(person));
+dikhao(contains(person, "naam"));
+      </pre>
+      <p>Try pasting a snippet above into the editor, then click "Run Code".</p>
     </div>
   </div>
 
   <div class="footer">
-    <p>AdarshLang </p>
+    <p>AdarshLang</p>
   </div>
 </div>
 
@@ -163,7 +183,7 @@ RESULT_PAGE_TEMPLATE = """
 <head>
   <meta charset="UTF-8">
   <title>AdarshLang Online - Results</title>
-  <link rel="stylesheet" 
+  <link rel="stylesheet"
     href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <style>
     body {
@@ -174,14 +194,14 @@ RESULT_PAGE_TEMPLATE = """
       margin-top: 2rem;
     }
     pre {
-      background: #eee; 
+      background: #eee;
       padding: 1rem;
-      white-space: pre-wrap; 
-      word-wrap: break-word; 
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
     .footer {
-      text-align: center; 
-      margin-top: 3rem; 
+      text-align: center;
+      margin-top: 3rem;
       color: #999;
     }
   </style>
@@ -212,20 +232,13 @@ def home():
 @app.route("/run", methods=["POST"])
 def run_code():
     source_code = request.form.get("source_code", "")
-    
-    # Capture stdout
+
     old_stdout = sys.stdout
     mystdout = StringIO()
     sys.stdout = mystdout
 
     try:
-        # Compile and run the AdarshLang code
         adarshlang_compile_and_run(source_code)
-
-        # DEMO fallback block:
-        print("Your code was:\n")
-        print(source_code)
-
     except (AdarshRuntimeError, AdarshUserException, AdarshSemanticError) as e:
         output = f"Error: {e}"
     else:

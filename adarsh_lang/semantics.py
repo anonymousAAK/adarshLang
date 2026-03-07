@@ -6,11 +6,13 @@ from .ast import (
     AdarshAssignNode,
     AdarshAttributeAccessNode,
     AdarshAttributeAssignNode,
+    AdarshAttributeCompoundAssignNode,
     AdarshBinOpNode,
     AdarshBlockNode,
     AdarshBoolLiteralNode,
     AdarshBreakNode,
     AdarshCallNode,
+    AdarshCompoundAssignNode,
     AdarshContinueNode,
     AdarshDhachaConstructNode,
     AdarshDhachaDefNode,
@@ -23,8 +25,10 @@ from .ast import (
     AdarshImportNode,
     AdarshIndexAccessNode,
     AdarshIndexAssignNode,
+    AdarshIndexCompoundAssignNode,
     AdarshKaamDefNode,
     AdarshListLiteralNode,
+    AdarshNullLiteralNode,
     AdarshNumLiteralNode,
     AdarshParam,
     AdarshProgramNode,
@@ -201,6 +205,46 @@ class AdarshSemanticAnalyzer:
             AdarshParam('_value'),
             AdarshParam('_sep', AdarshStringLiteralNode(' ')),
         ]))
+        register('prakar', AdarshFunctionSignature([AdarshParam('_value')]))
+        register('shabdme', AdarshFunctionSignature([AdarshParam('_value')]))
+        register('sankhya', AdarshFunctionSignature([AdarshParam('_value')]))
+        register('range', AdarshFunctionSignature([
+            AdarshParam('_start'),
+            AdarshParam('_end', AdarshNumLiteralNode(0)),
+            AdarshParam('_step', AdarshNumLiteralNode(1)),
+        ]))
+        register('keys', AdarshFunctionSignature([AdarshParam('_dict')]))
+        register('values', AdarshFunctionSignature([AdarshParam('_dict')]))
+        register('contains', AdarshFunctionSignature([
+            AdarshParam('_collection'),
+            AdarshParam('_value'),
+        ]))
+        register('sort', AdarshFunctionSignature([AdarshParam('_list')]))
+        register('reverse', AdarshFunctionSignature([AdarshParam('_list')]))
+        register('slice', AdarshFunctionSignature([
+            AdarshParam('_collection'),
+            AdarshParam('_start', AdarshNumLiteralNode(0)),
+            AdarshParam('_end', AdarshNullLiteralNode()),
+        ]))
+        register('replace', AdarshFunctionSignature([
+            AdarshParam('_string'),
+            AdarshParam('_old'),
+            AdarshParam('_new'),
+        ]))
+        register('trim', AdarshFunctionSignature([AdarshParam('_value')]))
+        register('find', AdarshFunctionSignature([
+            AdarshParam('_collection'),
+            AdarshParam('_value'),
+        ]))
+        register('min_val', AdarshFunctionSignature([
+            AdarshParam('_a'),
+            AdarshParam('_b'),
+        ]))
+        register('max_val', AdarshFunctionSignature([
+            AdarshParam('_a'),
+            AdarshParam('_b'),
+        ]))
+        register('round_val', AdarshFunctionSignature([AdarshParam('_value')]))
 
         return signatures
 
@@ -221,11 +265,21 @@ class AdarshSemanticAnalyzer:
         elif isinstance(node, AdarshAssignNode):
             scope.get_variable(node.var_name)
             self.analyze(node.expr, scope, loop_depth)
+        elif isinstance(node, AdarshCompoundAssignNode):
+            scope.get_variable(node.var_name)
+            self.analyze(node.expr, scope, loop_depth)
         elif isinstance(node, AdarshIndexAssignNode):
             self.analyze(node.collection, scope, loop_depth)
             self.analyze(node.index_expr, scope, loop_depth)
             self.analyze(node.value_expr, scope, loop_depth)
+        elif isinstance(node, AdarshIndexCompoundAssignNode):
+            self.analyze(node.collection, scope, loop_depth)
+            self.analyze(node.index_expr, scope, loop_depth)
+            self.analyze(node.value_expr, scope, loop_depth)
         elif isinstance(node, AdarshAttributeAssignNode):
+            self.analyze(node.target, scope, loop_depth)
+            self.analyze(node.value_expr, scope, loop_depth)
+        elif isinstance(node, AdarshAttributeCompoundAssignNode):
             self.analyze(node.target, scope, loop_depth)
             self.analyze(node.value_expr, scope, loop_depth)
         elif isinstance(node, AdarshBinOpNode):
@@ -233,7 +287,7 @@ class AdarshSemanticAnalyzer:
             self.analyze(node.right, scope, loop_depth)
         elif isinstance(node, AdarshUnaryOpNode):
             self.analyze(node.factor, scope, loop_depth)
-        elif isinstance(node, (AdarshNumLiteralNode, AdarshBoolLiteralNode, AdarshStringLiteralNode)):
+        elif isinstance(node, (AdarshNumLiteralNode, AdarshBoolLiteralNode, AdarshStringLiteralNode, AdarshNullLiteralNode)):
             pass
         elif isinstance(node, AdarshListLiteralNode):
             for element in node.elements:

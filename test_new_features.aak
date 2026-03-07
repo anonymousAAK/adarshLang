@@ -1,0 +1,186 @@
+# ============================================
+# AdarshLang New Features Test
+# ============================================
+
+# --- 1. Null literal (khali) ---
+dikhao("=== Khali (null) ===");
+badlo nothing = khali;
+dikhao(nothing);
+agar (nothing == khali) {
+    dikhao("khali check passed!");
+}
+
+# --- 2. Modulo operator (%) ---
+dikhao("=== Modulo (%) ===");
+badlo remainder = 17 % 5;
+dikhao(remainder);
+
+# Check even/odd using modulo
+badlo num = 42;
+agar (num % 2 == 0) {
+    dikhao("42 is even - sahi!");
+}
+
+# --- 3. Power operator (**) ---
+dikhao("=== Power (**) ===");
+badlo squared = 5 ** 2;
+dikhao(squared);
+badlo cubed = 3 ** 3;
+dikhao(cubed);
+
+# --- 4. String escape sequences ---
+dikhao("=== Escape Sequences ===");
+dikhao("Hello\tWorld");
+dikhao("Line1\nLine2");
+dikhao("Escaped quote: \"hello\"");
+
+# --- 5. Compound assignment operators ---
+dikhao("=== Compound Assignment ===");
+badlo counter = 10;
+counter += 5;
+dikhao(counter);
+
+counter -= 3;
+dikhao(counter);
+
+counter *= 2;
+dikhao(counter);
+
+counter /= 6;
+dikhao(counter);
+
+counter %= 3;
+dikhao(counter);
+
+# Compound on list elements
+badlo scores = [10, 20, 30];
+scores[1] += 5;
+dikhao(scores);
+
+# --- 6. prakar (type checking) ---
+dikhao("=== Prakar (type) ===");
+dikhao(prakar(42));
+dikhao(prakar("hello"));
+dikhao(prakar(sahi_hai_be));
+dikhao(prakar([1, 2]));
+dikhao(prakar({"a": 1}));
+dikhao(prakar(khali));
+
+# --- 7. shabdme (toString) ---
+dikhao("=== Shabdme (toString) ===");
+badlo numStr = shabdme(123);
+dikhao(numStr);
+dikhao(prakar(numStr));
+dikhao(shabdme(sahi_hai_be));
+dikhao(shabdme(khali));
+
+# --- 8. sankhya (toNumber) ---
+dikhao("=== Sankhya (toNumber) ===");
+badlo parsed = sankhya("42");
+dikhao(parsed);
+dikhao(prakar(parsed));
+badlo parsedFloat = sankhya("3.14");
+dikhao(parsedFloat);
+
+# --- 9. range ---
+dikhao("=== Range ===");
+badlo nums = range(5);
+dikhao(nums);
+badlo nums2 = range(2, 8);
+dikhao(nums2);
+badlo nums3 = range(0, 20, 5);
+dikhao(nums3);
+
+# Use range in for-each
+badlo total = 0;
+ke_liye (badlo i in range(1, 6)) {
+    total += i;
+}
+dikhao(total);
+
+# --- 10. keys & values ---
+dikhao("=== Keys & Values ===");
+badlo person = {"naam": "Adarsh", "umar": 24, "shahar": "Indore"};
+dikhao(keys(person));
+dikhao(values(person));
+
+# --- 11. contains ---
+dikhao("=== Contains ===");
+badlo fruits = ["seb", "kela", "amrud"];
+dikhao(contains(fruits, "kela"));
+dikhao(contains(fruits, "santra"));
+dikhao(contains("namaste duniya", "duniya"));
+dikhao(contains(person, "naam"));
+
+# --- 12. sort ---
+dikhao("=== Sort ===");
+badlo unsorted = [5, 2, 8, 1, 9, 3];
+badlo sorted_list = sort(unsorted);
+dikhao(sorted_list);
+
+# --- 13. reverse ---
+dikhao("=== Reverse ===");
+dikhao(reverse([1, 2, 3, 4, 5]));
+dikhao(reverse("namaste"));
+
+# --- 14. slice ---
+dikhao("=== Slice ===");
+badlo data = [10, 20, 30, 40, 50];
+dikhao(slice(data, 1, 4));
+dikhao(slice("AdarshLang", 0, 6));
+
+# --- 15. replace ---
+dikhao("=== Replace ===");
+badlo greeting = "Hello World";
+dikhao(replace(greeting, "World", "Duniya"));
+
+# --- 16. trim ---
+dikhao("=== Trim ===");
+dikhao(trim("   namaste   "));
+
+# --- 17. find ---
+dikhao("=== Find ===");
+dikhao(find([10, 20, 30], 20));
+dikhao(find([10, 20, 30], 99));
+dikhao(find("AdarshLang", "Lang"));
+
+# --- 18. min_val & max_val ---
+dikhao("=== Min & Max ===");
+dikhao(min_val(10, 20));
+dikhao(max_val(10, 20));
+
+# --- 19. round_val ---
+dikhao("=== Round ===");
+dikhao(round_val(4.6));
+dikhao(round_val(4.4));
+
+# --- 20. Compound assignment in ginnati loop ---
+dikhao("=== Ginnati with += ===");
+badlo sum = 0;
+ginnati (badlo i = 1; i <= 10; i += 1) {
+    sum += i;
+}
+dikhao(sum);
+
+# --- 21. Boolean display ---
+dikhao("=== Boolean Display ===");
+dikhao(sahi_hai_be);
+dikhao(jhuth);
+dikhao(5 > 3);
+dikhao(2 > 7);
+
+# --- 22. Complex example: FizzBuzz ---
+dikhao("=== FizzBuzz ===");
+ginnati (badlo i = 1; i <= 15; i += 1) {
+    agar (i % 15 == 0) {
+        dikhao("FizzBuzz");
+    } warna agar (i % 3 == 0) {
+        dikhao("Fizz");
+    } warna agar (i % 5 == 0) {
+        dikhao("Buzz");
+    } warna {
+        dikhao(i);
+    }
+}
+
+dikhao("=== Sab test pass! ===");

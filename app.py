@@ -6,6 +6,15 @@ from adarsh_lang_compiler import (
     AdarshRuntimeError,
     AdarshUserException,
     AdarshSemanticError,
+    AdarshParserError,
+)
+
+# Language-level errors we surface to the user as friendly output.
+ADARSH_ERRORS = (
+    AdarshRuntimeError,
+    AdarshUserException,
+    AdarshSemanticError,
+    AdarshParserError,
 )
 
 app = Flask(__name__)
@@ -18,175 +27,383 @@ HOME_PAGE_TEMPLATE = """
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AdarshLang Online</title>
-  <link rel="stylesheet"
-    href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AdarshLang</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg: #f5f5f7;
+      --bg-grad-1: #e7f0ff;
+      --bg-grad-2: #fbe9ff;
+      --surface: rgba(255, 255, 255, 0.72);
+      --surface-solid: #ffffff;
+      --border: rgba(0, 0, 0, 0.08);
+      --text: #1d1d1f;
+      --text-dim: #6e6e73;
+      --accent: #0071e3;
+      --accent-hover: #0077ed;
+      --editor-bg: #ffffff;
+      --editor-text: #1d1d1f;
+      --output-bg: #1d1d1f;
+      --output-text: #e8e8ed;
+      --chip-bg: rgba(255, 255, 255, 0.6);
+      --chip-border: rgba(0, 0, 0, 0.09);
+      --shadow: 0 12px 40px rgba(0, 0, 0, 0.10);
+      --code-tag: #0071e3;
+      --error: #ff453a;
+      --success: #30d158;
+    }
+    [data-theme="dark"] {
+      --bg: #000000;
+      --bg-grad-1: #0a1830;
+      --bg-grad-2: #1a0a26;
+      --surface: rgba(28, 28, 30, 0.72);
+      --surface-solid: #1c1c1e;
+      --border: rgba(255, 255, 255, 0.10);
+      --text: #f5f5f7;
+      --text-dim: #98989d;
+      --accent: #0a84ff;
+      --accent-hover: #409cff;
+      --editor-bg: #1c1c1e;
+      --editor-text: #f5f5f7;
+      --output-bg: #000000;
+      --output-text: #e8e8ed;
+      --chip-bg: rgba(255, 255, 255, 0.06);
+      --chip-border: rgba(255, 255, 255, 0.12);
+      --shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      --code-tag: #64d2ff;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
     body {
-      background: #f8f9fa;
-      margin: 20px;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      background-image:
+        radial-gradient(1200px 600px at 15% -10%, var(--bg-grad-1), transparent 60%),
+        radial-gradient(1000px 500px at 100% 0%, var(--bg-grad-2), transparent 55%);
+      background-attachment: fixed;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+      transition: background-color .4s ease, color .4s ease;
     }
-    .header-text {
-      margin-bottom: 1rem;
+    code {
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.86em;
+      background: var(--chip-bg);
+      border: 1px solid var(--chip-border);
+      color: var(--code-tag);
+      padding: 1px 6px;
+      border-radius: 6px;
     }
-    textarea {
-      width: 100%;
-      font-family: monospace;
-      min-height: 200px;
-      resize: vertical;
+
+    /* Nav */
+    .nav {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px clamp(18px, 5vw, 56px);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
     }
+    .nav-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; letter-spacing: -0.02em; }
+    .nav-logo {
+      width: 30px; height: 30px; border-radius: 9px;
+      background: linear-gradient(135deg, #0071e3, #9f4bff);
+      display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 15px;
+      box-shadow: 0 4px 14px rgba(0,113,227,0.4);
+    }
+    .nav-links { display: flex; align-items: center; gap: 8px; }
+    .nav-link { color: var(--text-dim); text-decoration: none; font-size: 14px; padding: 7px 12px; border-radius: 980px; transition: .2s; }
+    .nav-link:hover { color: var(--text); background: var(--chip-bg); }
+    .theme-toggle {
+      width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border);
+      background: var(--chip-bg); color: var(--text); cursor: pointer; font-size: 16px;
+      display: grid; place-items: center; transition: .2s;
+    }
+    .theme-toggle:hover { transform: scale(1.08); }
+
+    /* Hero */
+    .hero { text-align: center; padding: clamp(48px, 9vw, 96px) 20px clamp(28px, 5vw, 48px); }
+    .hero h1 {
+      font-size: clamp(40px, 8vw, 80px); line-height: 1.04; letter-spacing: -0.03em;
+      font-weight: 700; margin: 0 0 16px;
+      background: linear-gradient(120deg, #0071e3, #9f4bff 55%, #ff375f);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero p { font-size: clamp(17px, 2.4vw, 22px); color: var(--text-dim); max-width: 620px; margin: 0 auto; }
+    .hero .pill { display:inline-block; margin-bottom: 22px; font-size: 13px; font-weight: 600; color: var(--accent);
+      background: var(--chip-bg); border:1px solid var(--chip-border); padding: 6px 14px; border-radius: 980px; letter-spacing: .02em; }
+
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 32px) 80px; }
+
     .card {
-      margin-top: 2rem;
+      background: var(--surface);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: clamp(20px, 3vw, 32px);
+      margin-top: 28px;
     }
-    pre {
-      background: #eee;
-      padding: 1rem;
-      white-space: pre-wrap;
-      word-wrap: break-word;
+    .card h2 { font-size: 26px; letter-spacing: -0.02em; margin: 0 0 6px; font-weight: 700; }
+    .card .sub { color: var(--text-dim); margin: 0 0 22px; font-size: 15px; }
+
+    /* Editor */
+    .editor-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+    .editor-title { display:flex; align-items:center; gap: 8px; font-weight:600; font-size: 15px; }
+    .traffic { display:flex; gap:7px; margin-right: 6px; }
+    .traffic span { width: 12px; height: 12px; border-radius: 50%; }
+    .traffic .r{background:#ff5f57;} .traffic .y{background:#febc2e;} .traffic .g{background:#28c840;}
+    .editor-wrap {
+      border-radius: 16px; overflow: hidden; border: 1px solid var(--border);
+      background: var(--editor-bg);
     }
-    .footer {
-      text-align: center;
-      margin-top: 3rem;
-      color: #999;
+    textarea#source_code {
+      width: 100%; min-height: 320px; resize: vertical; border: 0; outline: none;
+      padding: 18px 20px; background: var(--editor-bg); color: var(--editor-text);
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 14.5px; line-height: 1.65; tab-size: 4;
     }
-    .snippet-btn {
-      margin: 4px;
-      font-size: 0.85rem;
+    textarea#source_code::placeholder { color: var(--text-dim); opacity: .7; }
+
+    .toolbar { display: flex; gap: 12px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+    .btn {
+      font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; border: none;
+      border-radius: 980px; padding: 12px 26px; transition: transform .12s ease, background .2s, box-shadow .2s;
+      display: inline-flex; align-items: center; gap: 8px;
     }
-    .snippet-section {
-      margin-top: 1rem;
+    .btn:active { transform: scale(0.97); }
+    .spin { display: inline-block; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 6px 20px rgba(0,113,227,0.35); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: .6; cursor: progress; }
+    .btn-ghost { background: var(--chip-bg); color: var(--text); border: 1px solid var(--chip-border); padding: 12px 20px; }
+    .btn-ghost:hover { background: var(--chip-border); }
+    .kbd-hint { color: var(--text-dim); font-size: 13px; margin-left: auto; }
+    .kbd { font-family:"JetBrains Mono",monospace; font-size:12px; background:var(--chip-bg); border:1px solid var(--chip-border); border-radius:6px; padding:2px 6px; }
+
+    /* Output */
+    .output-wrap { margin-top: 18px; display: none; }
+    .output-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 8px; }
+    .output-label { display:flex; align-items:center; gap:8px; font-weight:600; font-size: 14px; }
+    .status-dot { width:9px; height:9px; border-radius:50%; background: var(--success); }
+    .status-dot.err { background: var(--error); }
+    pre#output-pre {
+      margin: 0; background: var(--output-bg); color: var(--output-text);
+      border-radius: 16px; padding: 18px 20px; min-height: 64px; max-height: 440px; overflow-y: auto;
+      white-space: pre-wrap; word-wrap: break-word;
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13.5px; line-height: 1.6; border: 1px solid var(--border);
     }
-    .error-output {
-      background: #fdecea !important;
-      color: #c0392b;
+    pre#output-pre.error-output { color: #ff8a80; }
+
+    /* Snippets */
+    .chips { display: flex; flex-wrap: wrap; gap: 9px; }
+    .chip {
+      font: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer;
+      background: var(--chip-bg); color: var(--text); border: 1px solid var(--chip-border);
+      border-radius: 980px; padding: 8px 15px; transition: .18s;
+    }
+    .chip:hover { transform: translateY(-2px); border-color: var(--accent); color: var(--accent); }
+    .chip.featured { background: linear-gradient(120deg, #0071e3, #9f4bff); color:#fff; border: none; box-shadow: 0 4px 14px rgba(120,80,255,.35); }
+    .chip.featured:hover { color:#fff; opacity:.92; }
+
+    /* Feature grid */
+    .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .feature {
+      background: var(--surface-solid); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px;
+    }
+    .feature h4 { margin: 0 0 10px; font-size: 16px; letter-spacing: -0.01em; display:flex; align-items:center; gap:8px; }
+    .feature .emoji { font-size: 18px; }
+    .feature ul { margin: 0; padding-left: 0; list-style: none; }
+    .feature li { padding: 4px 0; font-size: 14px; color: var(--text-dim); }
+    .feature li strong { color: var(--text); font-weight: 600; }
+
+    .footer { text-align: center; padding: 40px 20px; color: var(--text-dim); font-size: 14px; }
+    .footer .heart { color: #ff375f; }
+
+    ::-webkit-scrollbar { width: 11px; height: 11px; }
+    ::-webkit-scrollbar-thumb { background: rgba(140,140,150,.4); border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(140,140,150,.65); background-clip: content-box; }
+
+    @media (max-width: 600px) {
+      .nav-links .nav-link { display: none; }
+      .kbd-hint { display: none; }
     }
   </style>
 </head>
 <body>
 
+<nav class="nav">
+  <div class="nav-brand">
+    <span class="nav-logo">A</span>
+    <span>AdarshLang</span>
+  </div>
+  <div class="nav-links">
+    <a class="nav-link" href="#playground">Playground</a>
+    <a class="nav-link" href="#snippets">Examples</a>
+    <a class="nav-link" href="#docs">Docs</a>
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">🌙</button>
+  </div>
+</nav>
+
+<header class="hero">
+  <span class="pill">Hinglish &middot; meri bhasha</span>
+  <h1>Code in your<br>own language.</h1>
+  <p>A Hinglish-flavoured programming language with a full compiler pipeline — write <code>badlo</code>, <code>dikhao</code>, <code>agar</code> and run it instantly in your browser.</p>
+</header>
+
 <div class="container">
-  <h1 class="header-text text-center">AdarshLang Online Runner</h1>
 
   <!-- Code Editor Card -->
-  <div class="card shadow-sm">
-    <div class="card-body">
-      <form id="codeForm" onsubmit="runCode(event)">
-        <div class="form-group">
-          <label for="source_code"><strong>Enter your AdarshLang code:</strong></label>
-          <textarea id="source_code" name="source_code" rows="14"
-                    placeholder="badlo x = 10;&#10;dikhao(x);"></textarea>
-        </div>
-        <button type="submit" id="run-btn" class="btn btn-primary btn-block">&#9654;&nbsp; Run Code</button>
-      </form>
+  <div class="card" id="playground">
+    <div class="editor-head">
+      <div class="editor-title"><span>⚡</span> Playground</div>
+      <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+    </div>
 
-      <!-- Inline Output -->
-      <div id="output-card" class="mt-3" style="display:none;">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <strong id="output-label">Output</strong>
-          <button class="btn btn-sm btn-outline-secondary" onclick="clearOutput()">&#10005; Clear</button>
-        </div>
-        <pre id="output-pre" style="min-height:60px;max-height:420px;overflow-y:auto;"></pre>
+    <form id="codeForm" onsubmit="runCode(event)">
+      <div class="editor-wrap">
+        <textarea id="source_code" name="source_code" spellcheck="false"
+                  placeholder="badlo naam = &quot;Adarsh&quot;;&#10;dikhao(&quot;Namaste, &quot; + naam + &quot;!&quot;);"></textarea>
       </div>
+      <div class="toolbar">
+        <button type="submit" id="run-btn" class="btn btn-primary">&#9654;&nbsp; Run Code</button>
+        <button type="button" class="btn btn-ghost" onclick="copyCode()">⧉ Copy</button>
+        <button type="button" class="btn btn-ghost" onclick="resetEditor()">↺ Reset</button>
+        <span class="kbd-hint"><span class="kbd">⌘</span> / <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> to run</span>
+      </div>
+    </form>
 
-      <!-- One-click snippet buttons -->
-      <div class="snippet-section">
-        <label><strong>Try a snippet (click to load, then Run):</strong></label>
-        <div>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('hello')">Hello World</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('variables')">Variables &amp; Types</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('ifelse')">If / Else</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('loops')">Loops</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('functions')">Functions</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('lists')">Lists</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('dicts')">Dictionaries</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('structs')">Structs (dhacha)</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('switch')">Switch (chuno)</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('trycatch')">Try / Catch</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('math')">Math Builtins</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('strings')">String Builtins</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('functional')">Map / Filter / Reduce</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('compound')">Compound Assignment</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('power_mod')">Power &amp; Modulo</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('null')">Null (khali)</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('typecheck')">Type Checking</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('range')">Range &amp; Iteration</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('collections')">Collection Helpers</button>
-          <button class="btn btn-outline-secondary snippet-btn" onclick="loadSnippet('fizzbuzz')">FizzBuzz</button>
-          <button class="btn btn-outline-info snippet-btn" onclick="loadSnippet('all_features')">ALL Features Demo</button>
-        </div>
+    <!-- Inline Output -->
+    <div id="output-card" class="output-wrap">
+      <div class="output-head">
+        <div class="output-label"><span class="status-dot" id="status-dot"></span><span id="output-label">Output</span></div>
+        <button class="btn btn-ghost" style="padding:6px 14px;font-size:13px;" onclick="clearOutput()">&#10005; Clear</button>
       </div>
+      <pre id="output-pre"></pre>
+    </div>
+  </div>
+
+  <!-- One-click snippet buttons -->
+  <div class="card" id="snippets">
+    <h2>Examples</h2>
+    <p class="sub">Click any example to load it into the playground, then hit Run.</p>
+    <div class="chips">
+      <button class="chip" onclick="loadSnippet('hello')">Hello World</button>
+      <button class="chip" onclick="loadSnippet('variables')">Variables &amp; Types</button>
+      <button class="chip" onclick="loadSnippet('ifelse')">If / Else</button>
+      <button class="chip" onclick="loadSnippet('loops')">Loops</button>
+      <button class="chip" onclick="loadSnippet('functions')">Functions</button>
+      <button class="chip" onclick="loadSnippet('lists')">Lists</button>
+      <button class="chip" onclick="loadSnippet('dicts')">Dictionaries</button>
+      <button class="chip" onclick="loadSnippet('structs')">Structs (dhacha)</button>
+      <button class="chip" onclick="loadSnippet('switch')">Switch (chuno)</button>
+      <button class="chip" onclick="loadSnippet('trycatch')">Try / Catch</button>
+      <button class="chip" onclick="loadSnippet('math')">Math Builtins</button>
+      <button class="chip" onclick="loadSnippet('strings')">String Builtins</button>
+      <button class="chip" onclick="loadSnippet('functional')">Map / Filter / Reduce</button>
+      <button class="chip" onclick="loadSnippet('compound')">Compound Assignment</button>
+      <button class="chip" onclick="loadSnippet('power_mod')">Power &amp; Modulo</button>
+      <button class="chip" onclick="loadSnippet('null')">Null (khali)</button>
+      <button class="chip" onclick="loadSnippet('typecheck')">Type Checking</button>
+      <button class="chip" onclick="loadSnippet('range')">Range &amp; Iteration</button>
+      <button class="chip" onclick="loadSnippet('collections')">Collection Helpers</button>
+      <button class="chip" onclick="loadSnippet('fizzbuzz')">FizzBuzz</button>
+      <button class="chip featured" onclick="loadSnippet('all_features')">✦ ALL Features Demo</button>
     </div>
   </div>
 
   <!-- Tutorial Section -->
-  <div class="card shadow-sm mt-4">
-    <div class="card-body">
-      <h2>AdarshLang Quick Tutorial</h2>
-      <p>AdarshLang is a Hinglish-inspired programming language. Below is a summary of its features:</p>
+  <div class="card" id="docs">
+    <h2>Quick Tutorial</h2>
+    <p class="sub">AdarshLang is a Hinglish-inspired programming language. Here's everything it can do.</p>
 
-      <h4>Basics</h4>
-      <ul>
-        <li><strong>Variables:</strong> <code>badlo x = 10;</code></li>
-        <li><strong>Printing:</strong> <code>dikhao(x);</code></li>
-        <li><strong>Booleans:</strong> <code>sahi_hai_be</code> (true), <code>jhuth</code> (false)</li>
-        <li><strong>Null:</strong> <code>khali</code></li>
-        <li><strong>Comments:</strong> <code># yeh comment hai</code></li>
-      </ul>
+    <div class="feature-grid">
+      <div class="feature">
+        <h4><span class="emoji">📦</span> Basics</h4>
+        <ul>
+          <li><strong>Variables:</strong> <code>badlo x = 10;</code></li>
+          <li><strong>Printing:</strong> <code>dikhao(x);</code></li>
+          <li><strong>Booleans:</strong> <code>sahi_hai_be</code> / <code>jhuth</code></li>
+          <li><strong>Null:</strong> <code>khali</code></li>
+          <li><strong>Comments:</strong> <code># yeh comment hai</code></li>
+        </ul>
+      </div>
 
-      <h4>Operators</h4>
-      <ul>
-        <li><strong>Arithmetic:</strong> <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>%</code> (modulo), <code>**</code> (power)</li>
-        <li><strong>Comparison:</strong> <code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code></li>
-        <li><strong>Logical:</strong> <code>&amp;&amp;</code> (aur), <code>||</code> (ya), <code>!</code> (nahin)</li>
-        <li><strong>Compound Assignment:</strong> <code>+=</code>, <code>-=</code>, <code>*=</code>, <code>/=</code>, <code>%=</code></li>
-      </ul>
+      <div class="feature">
+        <h4><span class="emoji">➗</span> Operators</h4>
+        <ul>
+          <li><strong>Arithmetic:</strong> <code>+ - * /</code> <code>%</code> <code>**</code></li>
+          <li><strong>Comparison:</strong> <code>== != &lt; &gt; &lt;= &gt;=</code></li>
+          <li><strong>Logical:</strong> <code>&amp;&amp;</code> <code>||</code> <code>!</code></li>
+          <li><strong>Compound:</strong> <code>+= -= *= /= %=</code></li>
+        </ul>
+      </div>
 
-      <h4>Control Flow</h4>
-      <ul>
-        <li><strong>If/Else:</strong> <code>agar (x &lt; 20) { ... } warna { ... }</code> with chained <code>warna agar</code></li>
-        <li><strong>While:</strong> <code>jabtak (y &gt; 0) { ... }</code></li>
-        <li><strong>For:</strong> <code>ginnati (badlo i = 0; i &lt; 10; i += 1) { ... }</code></li>
-        <li><strong>For-each:</strong> <code>ke_liye (badlo item in list) { ... }</code></li>
-        <li><strong>Switch:</strong> <code>chuno (expr) { case val: ... warna_case: ... }</code></li>
-        <li><strong>Break/Continue:</strong> <code>bas;</code> / <code>aage_badho;</code></li>
-      </ul>
+      <div class="feature">
+        <h4><span class="emoji">🔀</span> Control Flow</h4>
+        <ul>
+          <li><strong>If/Else:</strong> <code>agar (...) { } warna { }</code></li>
+          <li><strong>While:</strong> <code>jabtak (y &gt; 0) { }</code></li>
+          <li><strong>For:</strong> <code>ginnati (...; ...; ...) { }</code></li>
+          <li><strong>For-each:</strong> <code>ke_liye (badlo i in list)</code></li>
+          <li><strong>Switch:</strong> <code>chuno (expr) { case ... }</code></li>
+          <li><strong>Break/Continue:</strong> <code>bas;</code> / <code>aage_badho;</code></li>
+        </ul>
+      </div>
 
-      <h4>Functions</h4>
-      <ul>
-        <li><strong>Define:</strong> <code>kaam add(a, b) { wapas a + b; }</code></li>
-        <li><strong>Default params:</strong> <code>kaam greet(naam, msg = "namaste") { ... }</code></li>
-        <li><strong>Varargs:</strong> <code>kaam total(baaki nums) { ... }</code></li>
-        <li><strong>Anonymous:</strong> <code>badlo fn = kaam (x) { wapas x * 2; };</code></li>
-      </ul>
+      <div class="feature">
+        <h4><span class="emoji">🛠️</span> Functions</h4>
+        <ul>
+          <li><strong>Define:</strong> <code>kaam add(a, b) { wapas a+b; }</code></li>
+          <li><strong>Defaults:</strong> <code>kaam g(n, m = "hi") { }</code></li>
+          <li><strong>Varargs:</strong> <code>kaam total(baaki nums) { }</code></li>
+          <li><strong>Anonymous:</strong> <code>kaam (x) { wapas x*2; }</code></li>
+        </ul>
+      </div>
 
-      <h4>Collections</h4>
-      <ul>
-        <li><strong>Lists:</strong> <code>[1, 2, 3]</code> with <code>push</code>, <code>pop</code>, <code>length</code>, <code>sort</code>, <code>reverse</code>, <code>slice</code></li>
-        <li><strong>Dicts:</strong> <code>{"key": "value"}</code> with <code>rakho</code>, <code>nikalo</code>, <code>keys</code>, <code>values</code></li>
-        <li><strong>Structs:</strong> <code>dhacha Vyakti { naam, umar };</code></li>
-      </ul>
+      <div class="feature">
+        <h4><span class="emoji">📚</span> Collections</h4>
+        <ul>
+          <li><strong>Lists:</strong> <code>[1,2,3]</code> + push, pop, sort, slice</li>
+          <li><strong>Dicts:</strong> <code>{"key": "value"}</code> + keys, values</li>
+          <li><strong>Structs:</strong> <code>dhacha Vyakti { naam, umar };</code></li>
+        </ul>
+      </div>
 
-      <h4>Built-in Functions</h4>
-      <ul>
-        <li><strong>Math:</strong> <code>abs</code>, <code>floor</code>, <code>ceil</code>, <code>round_val</code>, <code>min_val</code>, <code>max_val</code>, <code>random_number</code></li>
-        <li><strong>Strings:</strong> <code>upper</code>, <code>lower</code>, <code>join</code>, <code>split</code>, <code>trim</code>, <code>replace</code>, <code>find</code></li>
-        <li><strong>Type:</strong> <code>prakar(x)</code> (type), <code>shabdme(42)</code> (toString), <code>sankhya("42")</code> (toNumber)</li>
-        <li><strong>Iteration:</strong> <code>range(start, end, step)</code>, <code>contains(list, val)</code></li>
-        <li><strong>Functional:</strong> <code>map</code>, <code>filter</code>, <code>reduce</code></li>
-        <li><strong>Other:</strong> <code>current_time()</code></li>
-      </ul>
+      <div class="feature">
+        <h4><span class="emoji">🧮</span> Built-in Functions</h4>
+        <ul>
+          <li><strong>Math:</strong> <code>abs floor ceil round_val min_val max_val</code></li>
+          <li><strong>Strings:</strong> <code>upper lower join split trim replace find</code></li>
+          <li><strong>Type:</strong> <code>prakar shabdme sankhya</code></li>
+          <li><strong>Iteration:</strong> <code>range contains</code></li>
+          <li><strong>Functional:</strong> <code>map filter reduce</code></li>
+        </ul>
+      </div>
 
-      <h4>Error Handling &amp; Modules</h4>
-      <ul>
-        <li><strong>Try/Catch:</strong> <code>pakdo { ... } chhoddo (err) { ... }</code></li>
-        <li><strong>Throw:</strong> <code>chhoddo("error message");</code></li>
-        <li><strong>Import:</strong> <code>lao "module.aak";</code></li>
-      </ul>
+      <div class="feature">
+        <h4><span class="emoji">🛡️</span> Errors &amp; Modules</h4>
+        <ul>
+          <li><strong>Try/Catch:</strong> <code>pakdo { } chhoddo (err) { }</code></li>
+          <li><strong>Throw:</strong> <code>chhoddo("error message");</code></li>
+          <li><strong>Import:</strong> <code>lao "module.aak";</code></li>
+        </ul>
+      </div>
     </div>
   </div>
 
   <div class="footer">
-    <p>AdarshLang</p>
+    <p>Made with <span class="heart">&hearts;</span> &middot; AdarshLang &mdash; apni bhasha, apna code.</p>
   </div>
 </div>
 
@@ -884,26 +1101,32 @@ dikhao("\\n=== Sab features kaam kar rahe hain! ===");`
 
 };
 
+var DEFAULT_CODE = snippets.hello;
+
 function loadSnippet(name) {
     document.getElementById('source_code').value = snippets[name];
     clearOutput();
-    document.getElementById('source_code').focus();
+    var ta = document.getElementById('source_code');
+    ta.focus();
+    document.getElementById('playground').scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
 async function runCode(event) {
-    event.preventDefault();
+    if (event) event.preventDefault();
     var code = document.getElementById('source_code').value;
     var btn = document.getElementById('run-btn');
     var card = document.getElementById('output-card');
     var pre = document.getElementById('output-pre');
     var label = document.getElementById('output-label');
+    var dot = document.getElementById('status-dot');
 
-    btn.textContent = 'Running...';
+    btn.innerHTML = '<span class="spin">\u25cc</span>&nbsp; Running...';
     btn.disabled = true;
     pre.className = '';
     pre.textContent = '';
     card.style.display = 'block';
     label.textContent = 'Output';
+    dot.className = 'status-dot';
 
     try {
         var resp = await fetch('/run_json', {
@@ -915,16 +1138,20 @@ async function runCode(event) {
         if (data.error) {
             pre.className = 'error-output';
             label.textContent = 'Error';
+            dot.className = 'status-dot err';
             pre.textContent = data.output;
         } else {
+            label.textContent = 'Output';
+            dot.className = 'status-dot';
             pre.textContent = data.output || '(no output)';
         }
     } catch (err) {
         pre.className = 'error-output';
         label.textContent = 'Error';
+        dot.className = 'status-dot err';
         pre.textContent = 'Network error: ' + err.message;
     } finally {
-        btn.textContent = '\u25b6\u00a0 Run Code';
+        btn.innerHTML = '\u25b6\u00a0 Run Code';
         btn.disabled = false;
         pre.scrollIntoView({behavior: 'smooth', block: 'nearest'});
     }
@@ -935,6 +1162,52 @@ function clearOutput() {
     card.style.display = 'none';
     document.getElementById('output-pre').textContent = '';
 }
+
+function copyCode() {
+    var code = document.getElementById('source_code').value;
+    navigator.clipboard.writeText(code).then(function () { flashButton(event.target, 'Copied!'); });
+}
+
+function resetEditor() {
+    document.getElementById('source_code').value = DEFAULT_CODE;
+    clearOutput();
+}
+
+function flashButton(btn, text) {
+    if (!btn) return;
+    var orig = btn.innerHTML;
+    btn.innerHTML = text;
+    setTimeout(function () { btn.innerHTML = orig; }, 1200);
+}
+
+function toggleTheme() {
+    var root = document.documentElement;
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    localStorage.setItem('aak-theme', next);
+    document.getElementById('theme-toggle').textContent = next === 'dark' ? '\\u2600\\uFE0F' : '\\uD83C\\uDF19';
+}
+
+(function initTheme() {
+    var saved = localStorage.getItem('aak-theme');
+    if (!saved) {
+        saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', saved);
+    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('theme-toggle').textContent = saved === 'dark' ? '\\u2600\\uFE0F' : '\\uD83C\\uDF19';
+        var ta = document.getElementById('source_code');
+        if (!ta.value) ta.value = DEFAULT_CODE;
+    });
+})();
+
+// Cmd/Ctrl + Enter to run
+document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        runCode();
+    }
+});
 </script>
 
 </body>
@@ -949,45 +1222,41 @@ RESULT_PAGE_TEMPLATE = """
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AdarshLang Online - Results</title>
-  <link rel="stylesheet"
-    href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AdarshLang — Output</title>
   <style>
+    * { box-sizing: border-box; }
     body {
-      background: #f8f9fa;
-      margin: 20px;
+      margin: 0; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+      color: #1d1d1f; background: #f5f5f7;
+      background-image: radial-gradient(1200px 600px at 15% -10%, #e7f0ff, transparent 60%),
+                        radial-gradient(1000px 500px at 100% 0%, #fbe9ff, transparent 55%);
+      display: flex; align-items: center; justify-content: center; padding: 40px 20px;
     }
     .card {
-      margin-top: 2rem;
+      background: rgba(255,255,255,0.72); backdrop-filter: saturate(180%) blur(20px);
+      border: 1px solid rgba(0,0,0,0.08); border-radius: 22px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.10); padding: 32px; max-width: 760px; width: 100%;
     }
+    h1 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 18px; }
     pre {
-      background: #eee;
-      padding: 1rem;
-      white-space: pre-wrap;
-      word-wrap: break-word;
+      background: #1d1d1f; color: #e8e8ed; border-radius: 16px; padding: 18px 20px; margin: 0;
+      white-space: pre-wrap; word-wrap: break-word;
+      font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 13.5px; line-height: 1.6;
     }
-    .footer {
-      text-align: center;
-      margin-top: 3rem;
-      color: #999;
+    a.btn {
+      display: inline-block; margin-top: 20px; text-decoration: none; color: #fff; background: #0071e3;
+      padding: 12px 26px; border-radius: 980px; font-weight: 500; box-shadow: 0 6px 20px rgba(0,113,227,0.35);
     }
   </style>
 </head>
 <body>
-<div class="container">
-  <h1 class="text-center">AdarshLang Execution Output</h1>
-  <div class="card shadow-sm">
-    <div class="card-body">
-      <pre>{{ output }}</pre>
-    </div>
+  <div class="card">
+    <h1>Execution Output</h1>
+    <pre>{{ output }}</pre>
+    <a class="btn" href="/">&larr; Back to Playground</a>
   </div>
-  <div class="text-center mt-3">
-    <a href="/" class="btn btn-secondary">Back to Editor</a>
-  </div>
-  <div class="footer">
-    <p>AdarshLang</p>
-  </div>
-</div>
 </body>
 </html>
 """
@@ -1006,7 +1275,9 @@ def run_code():
 
     try:
         adarshlang_compile_and_run(source_code)
-    except (AdarshRuntimeError, AdarshUserException, AdarshSemanticError) as e:
+    except ADARSH_ERRORS as e:
+        output = f"Error: {e}"
+    except Exception as e:  # noqa: BLE001 - playground should never 500
         output = f"Error: {e}"
     else:
         output = mystdout.getvalue()
@@ -1027,7 +1298,10 @@ def run_code_json():
     error = False
     try:
         adarshlang_compile_and_run(source_code)
-    except (AdarshRuntimeError, AdarshUserException, AdarshSemanticError) as e:
+    except ADARSH_ERRORS as e:
+        error = True
+        output = str(e)
+    except Exception as e:  # noqa: BLE001 - playground should never 500
         error = True
         output = str(e)
     else:

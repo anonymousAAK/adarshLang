@@ -30,212 +30,199 @@ HOME_PAGE_TEMPLATE = """
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AdarshLang</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #f5f5f7;
-      --bg-grad-1: #e7f0ff;
-      --bg-grad-2: #fbe9ff;
-      --surface: rgba(255, 255, 255, 0.72);
-      --surface-solid: #ffffff;
-      --border: rgba(0, 0, 0, 0.08);
+      --bg: #ffffff;
+      --bg-alt: #fbfbfd;
+      --section: #f5f5f7;
       --text: #1d1d1f;
-      --text-dim: #6e6e73;
+      --text-dim: #86868b;
       --accent: #0071e3;
-      --accent-hover: #0077ed;
-      --editor-bg: #ffffff;
+      --link: #0066cc;
+      --border: #d2d2d7;
+      --hairline: rgba(0, 0, 0, 0.08);
+      --surface: #ffffff;
+      --editor-bg: #fbfbfd;
       --editor-text: #1d1d1f;
       --output-bg: #1d1d1f;
-      --output-text: #e8e8ed;
-      --chip-bg: rgba(255, 255, 255, 0.6);
-      --chip-border: rgba(0, 0, 0, 0.09);
-      --shadow: 0 12px 40px rgba(0, 0, 0, 0.10);
-      --code-tag: #0071e3;
-      --error: #ff453a;
-      --success: #30d158;
+      --output-text: #f5f5f7;
+      --nav-bg: rgba(255, 255, 255, 0.72);
+      --error: #e30000;
+      --success: #1d8a2b;
+      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, "Cascadia Mono", monospace;
     }
     [data-theme="dark"] {
       --bg: #000000;
-      --bg-grad-1: #0a1830;
-      --bg-grad-2: #1a0a26;
-      --surface: rgba(28, 28, 30, 0.72);
-      --surface-solid: #1c1c1e;
-      --border: rgba(255, 255, 255, 0.10);
+      --bg-alt: #0a0a0a;
+      --section: #101012;
       --text: #f5f5f7;
-      --text-dim: #98989d;
-      --accent: #0a84ff;
-      --accent-hover: #409cff;
-      --editor-bg: #1c1c1e;
+      --text-dim: #86868b;
+      --accent: #2997ff;
+      --link: #2997ff;
+      --border: #2a2a2c;
+      --hairline: rgba(255, 255, 255, 0.10);
+      --surface: #1c1c1e;
+      --editor-bg: #161617;
       --editor-text: #f5f5f7;
-      --output-bg: #000000;
-      --output-text: #e8e8ed;
-      --chip-bg: rgba(255, 255, 255, 0.06);
-      --chip-border: rgba(255, 255, 255, 0.12);
-      --shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-      --code-tag: #64d2ff;
+      --output-bg: #161617;
+      --output-text: #f5f5f7;
+      --nav-bg: rgba(22, 22, 23, 0.72);
+      --error: #ff6961;
+      --success: #30d158;
     }
 
     * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
       color: var(--text);
       background: var(--bg);
-      background-image:
-        radial-gradient(1200px 600px at 15% -10%, var(--bg-grad-1), transparent 60%),
-        radial-gradient(1000px 500px at 100% 0%, var(--bg-grad-2), transparent 55%);
-      background-attachment: fixed;
       -webkit-font-smoothing: antialiased;
-      line-height: 1.5;
-      transition: background-color .4s ease, color .4s ease;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.47059;
+      letter-spacing: -0.01em;
+      font-size: 17px;
+      transition: background-color .5s ease, color .5s ease;
     }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
     code {
-      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.86em;
-      background: var(--chip-bg);
-      border: 1px solid var(--chip-border);
-      color: var(--code-tag);
+      font-family: var(--mono);
+      font-size: 0.84em;
+      background: var(--section);
+      color: var(--text);
       padding: 1px 6px;
-      border-radius: 6px;
+      border-radius: 5px;
     }
 
-    /* Nav */
+    /* Nav — apple.com style: thin, centered, translucent */
     .nav {
       position: sticky; top: 0; z-index: 50;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 14px clamp(18px, 5vw, 56px);
       backdrop-filter: saturate(180%) blur(20px);
       -webkit-backdrop-filter: saturate(180%) blur(20px);
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--hairline);
     }
-    .nav-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; letter-spacing: -0.02em; }
-    .nav-logo {
-      width: 30px; height: 30px; border-radius: 9px;
-      background: linear-gradient(135deg, #0071e3, #9f4bff);
-      display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 15px;
-      box-shadow: 0 4px 14px rgba(0,113,227,0.4);
+    .nav-inner {
+      max-width: 1024px; margin: 0 auto; height: 48px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 22px;
     }
-    .nav-links { display: flex; align-items: center; gap: 8px; }
-    .nav-link { color: var(--text-dim); text-decoration: none; font-size: 14px; padding: 7px 12px; border-radius: 980px; transition: .2s; }
-    .nav-link:hover { color: var(--text); background: var(--chip-bg); }
+    .nav-brand { font-weight: 600; font-size: 19px; letter-spacing: -0.02em; color: var(--text); }
+    .nav-links { display: flex; align-items: center; gap: 4px; }
+    .nav-link { color: var(--text); opacity: .8; font-size: 13px; padding: 6px 11px; border-radius: 6px; transition: opacity .2s; }
+    .nav-link:hover { opacity: 1; text-decoration: none; }
     .theme-toggle {
-      width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border);
-      background: var(--chip-bg); color: var(--text); cursor: pointer; font-size: 16px;
-      display: grid; place-items: center; transition: .2s;
+      width: 30px; height: 30px; border-radius: 50%; border: none;
+      background: transparent; color: var(--text); cursor: pointer; font-size: 15px;
+      display: grid; place-items: center; opacity: .8; transition: opacity .2s;
     }
-    .theme-toggle:hover { transform: scale(1.08); }
+    .theme-toggle:hover { opacity: 1; }
 
     /* Hero */
-    .hero { text-align: center; padding: clamp(48px, 9vw, 96px) 20px clamp(28px, 5vw, 48px); }
+    .hero { text-align: center; padding: clamp(70px, 13vw, 150px) 22px clamp(40px, 7vw, 80px); max-width: 900px; margin: 0 auto; }
+    .eyebrow { font-size: clamp(19px, 3vw, 24px); font-weight: 600; color: var(--accent); letter-spacing: -0.01em; margin: 0 0 6px; }
     .hero h1 {
-      font-size: clamp(40px, 8vw, 80px); line-height: 1.04; letter-spacing: -0.03em;
-      font-weight: 700; margin: 0 0 16px;
-      background: linear-gradient(120deg, #0071e3, #9f4bff 55%, #ff375f);
-      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      font-size: clamp(48px, 9vw, 96px); line-height: 1.03; letter-spacing: -0.025em;
+      font-weight: 700; margin: 0 0 22px; color: var(--text);
     }
-    .hero p { font-size: clamp(17px, 2.4vw, 22px); color: var(--text-dim); max-width: 620px; margin: 0 auto; }
-    .hero .pill { display:inline-block; margin-bottom: 22px; font-size: 13px; font-weight: 600; color: var(--accent);
-      background: var(--chip-bg); border:1px solid var(--chip-border); padding: 6px 14px; border-radius: 980px; letter-spacing: .02em; }
+    .hero p {
+      font-size: clamp(19px, 2.6vw, 26px); line-height: 1.38; font-weight: 400;
+      color: var(--text-dim); max-width: 680px; margin: 0 auto;
+    }
+    .hero .cta { margin-top: 30px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
 
-    .container { max-width: 1080px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 32px) 80px; }
+    .section { max-width: 1024px; margin: 0 auto; padding: 0 22px; }
+    .section-head { text-align: center; max-width: 720px; margin: clamp(50px, 9vw, 100px) auto clamp(28px, 4vw, 44px); }
+    .section-head h2 { font-size: clamp(32px, 5vw, 48px); line-height: 1.08; letter-spacing: -0.02em; font-weight: 700; margin: 0 0 10px; }
+    .section-head p { font-size: clamp(17px, 2.2vw, 21px); color: var(--text-dim); margin: 0; }
 
-    .card {
+    /* Editor card */
+    .panel {
       background: var(--surface);
-      backdrop-filter: saturate(180%) blur(20px);
-      -webkit-backdrop-filter: saturate(180%) blur(20px);
       border: 1px solid var(--border);
-      border-radius: 22px;
-      box-shadow: var(--shadow);
-      padding: clamp(20px, 3vw, 32px);
-      margin-top: 28px;
+      border-radius: 18px;
+      overflow: hidden;
     }
-    .card h2 { font-size: 26px; letter-spacing: -0.02em; margin: 0 0 6px; font-weight: 700; }
-    .card .sub { color: var(--text-dim); margin: 0 0 22px; font-size: 15px; }
-
-    /* Editor */
-    .editor-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
-    .editor-title { display:flex; align-items:center; gap: 8px; font-weight:600; font-size: 15px; }
-    .traffic { display:flex; gap:7px; margin-right: 6px; }
-    .traffic span { width: 12px; height: 12px; border-radius: 50%; }
-    .traffic .r{background:#ff5f57;} .traffic .y{background:#febc2e;} .traffic .g{background:#28c840;}
-    .editor-wrap {
-      border-radius: 16px; overflow: hidden; border: 1px solid var(--border);
-      background: var(--editor-bg);
+    .editor-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 13px 18px; border-bottom: 1px solid var(--hairline);
+      background: var(--bg-alt);
     }
+    .editor-file { font-family: var(--mono); font-size: 13px; color: var(--text-dim); }
+    .editor-tag { font-size: 12px; color: var(--text-dim); }
     textarea#source_code {
-      width: 100%; min-height: 320px; resize: vertical; border: 0; outline: none;
-      padding: 18px 20px; background: var(--editor-bg); color: var(--editor-text);
-      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 14.5px; line-height: 1.65; tab-size: 4;
+      width: 100%; min-height: 340px; resize: vertical; border: 0; outline: none; display: block;
+      padding: 22px 24px; background: var(--editor-bg); color: var(--editor-text);
+      font-family: var(--mono); font-size: 14px; line-height: 1.7; tab-size: 4;
+      letter-spacing: 0;
     }
-    textarea#source_code::placeholder { color: var(--text-dim); opacity: .7; }
+    textarea#source_code::placeholder { color: var(--text-dim); }
 
-    .toolbar { display: flex; gap: 12px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+    .toolbar { display: flex; gap: 12px; align-items: center; margin-top: 20px; flex-wrap: wrap; }
     .btn {
-      font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; border: none;
-      border-radius: 980px; padding: 12px 26px; transition: transform .12s ease, background .2s, box-shadow .2s;
-      display: inline-flex; align-items: center; gap: 8px;
+      font: inherit; font-size: 16px; font-weight: 400; cursor: pointer; border: 1px solid transparent;
+      border-radius: 980px; padding: 9px 22px; transition: background .25s, color .25s, border-color .25s, opacity .2s;
+      display: inline-flex; align-items: center; gap: 7px; line-height: 1.2; letter-spacing: -0.01em;
     }
-    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { opacity: .88; }
+    .btn-primary:disabled { opacity: .5; cursor: progress; }
+    .btn-secondary { background: transparent; color: var(--link); border-color: transparent; padding: 9px 14px; }
+    .btn-secondary:hover { text-decoration: underline; }
+    .btn-outline { background: transparent; color: var(--text); border-color: var(--border); }
+    .btn-outline:hover { background: var(--section); }
     .spin { display: inline-block; animation: spin 0.7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 6px 20px rgba(0,113,227,0.35); }
-    .btn-primary:hover { background: var(--accent-hover); }
-    .btn-primary:disabled { opacity: .6; cursor: progress; }
-    .btn-ghost { background: var(--chip-bg); color: var(--text); border: 1px solid var(--chip-border); padding: 12px 20px; }
-    .btn-ghost:hover { background: var(--chip-border); }
     .kbd-hint { color: var(--text-dim); font-size: 13px; margin-left: auto; }
-    .kbd { font-family:"JetBrains Mono",monospace; font-size:12px; background:var(--chip-bg); border:1px solid var(--chip-border); border-radius:6px; padding:2px 6px; }
+    .kbd { font-family: var(--mono); font-size: 12px; background: var(--section); border: 1px solid var(--hairline); border-radius: 5px; padding: 2px 6px; }
 
     /* Output */
-    .output-wrap { margin-top: 18px; display: none; }
-    .output-head { display:flex; align-items:center; justify-content: space-between; margin-bottom: 8px; }
-    .output-label { display:flex; align-items:center; gap:8px; font-weight:600; font-size: 14px; }
-    .status-dot { width:9px; height:9px; border-radius:50%; background: var(--success); }
+    .output-wrap { margin-top: 20px; display: none; }
+    .output-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .output-label { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 15px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
     .status-dot.err { background: var(--error); }
     pre#output-pre {
       margin: 0; background: var(--output-bg); color: var(--output-text);
-      border-radius: 16px; padding: 18px 20px; min-height: 64px; max-height: 440px; overflow-y: auto;
+      border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px;
+      min-height: 64px; max-height: 460px; overflow-y: auto;
       white-space: pre-wrap; word-wrap: break-word;
-      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 13.5px; line-height: 1.6; border: 1px solid var(--border);
+      font-family: var(--mono); font-size: 13px; line-height: 1.65;
     }
-    pre#output-pre.error-output { color: #ff8a80; }
+    pre#output-pre.error-output { color: var(--error); }
 
-    /* Snippets */
-    .chips { display: flex; flex-wrap: wrap; gap: 9px; }
+    /* Examples — quiet chips */
+    .chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
     .chip {
-      font: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer;
-      background: var(--chip-bg); color: var(--text); border: 1px solid var(--chip-border);
-      border-radius: 980px; padding: 8px 15px; transition: .18s;
+      font: inherit; font-size: 14px; font-weight: 400; cursor: pointer;
+      background: var(--section); color: var(--text); border: 1px solid transparent;
+      border-radius: 980px; padding: 8px 17px; transition: background .2s, color .2s;
+      letter-spacing: -0.01em;
     }
-    .chip:hover { transform: translateY(-2px); border-color: var(--accent); color: var(--accent); }
-    .chip.featured { background: linear-gradient(120deg, #0071e3, #9f4bff); color:#fff; border: none; box-shadow: 0 4px 14px rgba(120,80,255,.35); }
-    .chip.featured:hover { color:#fff; opacity:.92; }
+    .chip:hover { background: var(--border); }
+    .chip.featured { background: var(--text); color: var(--bg); }
+    .chip.featured:hover { opacity: .85; }
 
-    /* Feature grid */
-    .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-    .feature {
-      background: var(--surface-solid); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px;
-    }
-    .feature h4 { margin: 0 0 10px; font-size: 16px; letter-spacing: -0.01em; display:flex; align-items:center; gap:8px; }
-    .feature .emoji { font-size: 18px; }
-    .feature ul { margin: 0; padding-left: 0; list-style: none; }
-    .feature li { padding: 4px 0; font-size: 14px; color: var(--text-dim); }
+    /* Feature grid — clean typographic columns */
+    .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1px; background: var(--hairline); border: 1px solid var(--hairline); border-radius: 18px; overflow: hidden; }
+    .feature { background: var(--bg); padding: 26px 28px; }
+    .feature h3 { margin: 0 0 14px; font-size: 19px; letter-spacing: -0.015em; font-weight: 600; }
+    .feature ul { margin: 0; padding: 0; list-style: none; }
+    .feature li { padding: 5px 0; font-size: 15px; color: var(--text-dim); line-height: 1.45; }
     .feature li strong { color: var(--text); font-weight: 600; }
+    .feature code { font-size: 13px; }
 
-    .footer { text-align: center; padding: 40px 20px; color: var(--text-dim); font-size: 14px; }
-    .footer .heart { color: #ff375f; }
+    .footer { border-top: 1px solid var(--hairline); margin-top: clamp(60px, 10vw, 110px); }
+    .footer-inner { max-width: 1024px; margin: 0 auto; padding: 24px 22px; color: var(--text-dim); font-size: 12px; }
 
-    ::-webkit-scrollbar { width: 11px; height: 11px; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
     ::-webkit-scrollbar-thumb { background: rgba(140,140,150,.4); border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(140,140,150,.65); background-clip: content-box; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(140,140,150,.6); background-clip: content-box; }
 
     @media (max-width: 600px) {
-      .nav-links .nav-link { display: none; }
+      .nav-link { padding: 6px 8px; }
       .kbd-hint { display: none; }
     }
   </style>
@@ -243,43 +230,50 @@ HOME_PAGE_TEMPLATE = """
 <body>
 
 <nav class="nav">
-  <div class="nav-brand">
-    <span class="nav-logo">A</span>
-    <span>AdarshLang</span>
-  </div>
-  <div class="nav-links">
-    <a class="nav-link" href="#playground">Playground</a>
-    <a class="nav-link" href="#snippets">Examples</a>
-    <a class="nav-link" href="#docs">Docs</a>
-    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">🌙</button>
+  <div class="nav-inner">
+    <span class="nav-brand">AdarshLang</span>
+    <div class="nav-links">
+      <a class="nav-link" href="#playground">Playground</a>
+      <a class="nav-link" href="#examples">Examples</a>
+      <a class="nav-link" href="#docs">Docs</a>
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle appearance" aria-label="Toggle appearance">&#9789;</button>
+    </div>
   </div>
 </nav>
 
 <header class="hero">
-  <span class="pill">Hinglish &middot; meri bhasha</span>
-  <h1>Code in your<br>own language.</h1>
-  <p>A Hinglish-flavoured programming language with a full compiler pipeline — write <code>badlo</code>, <code>dikhao</code>, <code>agar</code> and run it instantly in your browser.</p>
+  <p class="eyebrow">AdarshLang</p>
+  <h1>Your language.<br>Your code.</h1>
+  <p>A Hinglish programming language with a complete compiler. Write <code>badlo</code>, <code>dikhao</code>, <code>agar</code> — and run it instantly, right here in your browser.</p>
+  <div class="cta">
+    <a class="btn btn-primary" href="#playground">Open the Playground</a>
+    <a class="btn btn-secondary" href="#docs">Learn the language &rsaquo;</a>
+  </div>
 </header>
 
-<div class="container">
+<main>
 
-  <!-- Code Editor Card -->
-  <div class="card" id="playground">
-    <div class="editor-head">
-      <div class="editor-title"><span>⚡</span> Playground</div>
-      <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+  <!-- Code Editor -->
+  <section class="section" id="playground">
+    <div class="section-head">
+      <h2>The Playground</h2>
+      <p>Write AdarshLang and run it in real time.</p>
     </div>
 
     <form id="codeForm" onsubmit="runCode(event)">
-      <div class="editor-wrap">
+      <div class="panel">
+        <div class="editor-bar">
+          <span class="editor-file">playground.aak</span>
+          <span class="editor-tag">AdarshLang</span>
+        </div>
         <textarea id="source_code" name="source_code" spellcheck="false"
                   placeholder="badlo naam = &quot;Adarsh&quot;;&#10;dikhao(&quot;Namaste, &quot; + naam + &quot;!&quot;);"></textarea>
       </div>
       <div class="toolbar">
-        <button type="submit" id="run-btn" class="btn btn-primary">&#9654;&nbsp; Run Code</button>
-        <button type="button" class="btn btn-ghost" onclick="copyCode()">⧉ Copy</button>
-        <button type="button" class="btn btn-ghost" onclick="resetEditor()">↺ Reset</button>
-        <span class="kbd-hint"><span class="kbd">⌘</span> / <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> to run</span>
+        <button type="submit" id="run-btn" class="btn btn-primary">Run</button>
+        <button type="button" class="btn btn-outline" onclick="copyCode()">Copy</button>
+        <button type="button" class="btn btn-outline" onclick="resetEditor()">Reset</button>
+        <span class="kbd-hint"><span class="kbd">&#8984;</span> + <span class="kbd">&crarr;</span> to run</span>
       </div>
     </form>
 
@@ -287,16 +281,18 @@ HOME_PAGE_TEMPLATE = """
     <div id="output-card" class="output-wrap">
       <div class="output-head">
         <div class="output-label"><span class="status-dot" id="status-dot"></span><span id="output-label">Output</span></div>
-        <button class="btn btn-ghost" style="padding:6px 14px;font-size:13px;" onclick="clearOutput()">&#10005; Clear</button>
+        <button class="btn btn-secondary" style="padding:4px 10px;font-size:13px;" onclick="clearOutput()">Clear</button>
       </div>
       <pre id="output-pre"></pre>
     </div>
-  </div>
+  </section>
 
   <!-- One-click snippet buttons -->
-  <div class="card" id="snippets">
-    <h2>Examples</h2>
-    <p class="sub">Click any example to load it into the playground, then hit Run.</p>
+  <section class="section" id="examples">
+    <div class="section-head">
+      <h2>Start from an example</h2>
+      <p>Tap any example to load it into the playground, then Run.</p>
+    </div>
     <div class="chips">
       <button class="chip" onclick="loadSnippet('hello')">Hello World</button>
       <button class="chip" onclick="loadSnippet('variables')">Variables &amp; Types</button>
@@ -318,18 +314,20 @@ HOME_PAGE_TEMPLATE = """
       <button class="chip" onclick="loadSnippet('range')">Range &amp; Iteration</button>
       <button class="chip" onclick="loadSnippet('collections')">Collection Helpers</button>
       <button class="chip" onclick="loadSnippet('fizzbuzz')">FizzBuzz</button>
-      <button class="chip featured" onclick="loadSnippet('all_features')">✦ ALL Features Demo</button>
+      <button class="chip featured" onclick="loadSnippet('all_features')">All Features Demo</button>
     </div>
-  </div>
+  </section>
 
   <!-- Tutorial Section -->
-  <div class="card" id="docs">
-    <h2>Quick Tutorial</h2>
-    <p class="sub">AdarshLang is a Hinglish-inspired programming language. Here's everything it can do.</p>
+  <section class="section" id="docs">
+    <div class="section-head">
+      <h2>Everything it can do</h2>
+      <p>A Hinglish language with the depth of a real one.</p>
+    </div>
 
     <div class="feature-grid">
       <div class="feature">
-        <h4><span class="emoji">📦</span> Basics</h4>
+        <h3>Basics</h3>
         <ul>
           <li><strong>Variables:</strong> <code>badlo x = 10;</code></li>
           <li><strong>Printing:</strong> <code>dikhao(x);</code></li>
@@ -340,7 +338,7 @@ HOME_PAGE_TEMPLATE = """
       </div>
 
       <div class="feature">
-        <h4><span class="emoji">➗</span> Operators</h4>
+        <h3>Operators</h3>
         <ul>
           <li><strong>Arithmetic:</strong> <code>+ - * /</code> <code>%</code> <code>**</code></li>
           <li><strong>Comparison:</strong> <code>== != &lt; &gt; &lt;= &gt;=</code></li>
@@ -350,7 +348,7 @@ HOME_PAGE_TEMPLATE = """
       </div>
 
       <div class="feature">
-        <h4><span class="emoji">🔀</span> Control Flow</h4>
+        <h3>Control Flow</h3>
         <ul>
           <li><strong>If/Else:</strong> <code>agar (...) { } warna { }</code></li>
           <li><strong>While:</strong> <code>jabtak (y &gt; 0) { }</code></li>
@@ -362,7 +360,7 @@ HOME_PAGE_TEMPLATE = """
       </div>
 
       <div class="feature">
-        <h4><span class="emoji">🛠️</span> Functions</h4>
+        <h3>Functions</h3>
         <ul>
           <li><strong>Define:</strong> <code>kaam add(a, b) { wapas a+b; }</code></li>
           <li><strong>Defaults:</strong> <code>kaam g(n, m = "hi") { }</code></li>
@@ -372,7 +370,7 @@ HOME_PAGE_TEMPLATE = """
       </div>
 
       <div class="feature">
-        <h4><span class="emoji">📚</span> Collections</h4>
+        <h3>Collections</h3>
         <ul>
           <li><strong>Lists:</strong> <code>[1,2,3]</code> + push, pop, sort, slice</li>
           <li><strong>Dicts:</strong> <code>{"key": "value"}</code> + keys, values</li>
@@ -381,7 +379,7 @@ HOME_PAGE_TEMPLATE = """
       </div>
 
       <div class="feature">
-        <h4><span class="emoji">🧮</span> Built-in Functions</h4>
+        <h3>Built-in Functions</h3>
         <ul>
           <li><strong>Math:</strong> <code>abs floor ceil round_val min_val max_val</code></li>
           <li><strong>Strings:</strong> <code>upper lower join split trim replace find</code></li>
@@ -392,7 +390,7 @@ HOME_PAGE_TEMPLATE = """
       </div>
 
       <div class="feature">
-        <h4><span class="emoji">🛡️</span> Errors &amp; Modules</h4>
+        <h3>Errors &amp; Modules</h3>
         <ul>
           <li><strong>Try/Catch:</strong> <code>pakdo { } chhoddo (err) { }</code></li>
           <li><strong>Throw:</strong> <code>chhoddo("error message");</code></li>
@@ -400,12 +398,14 @@ HOME_PAGE_TEMPLATE = """
         </ul>
       </div>
     </div>
-  </div>
+  </section>
+</main>
 
-  <div class="footer">
-    <p>Made with <span class="heart">&hearts;</span> &middot; AdarshLang &mdash; apni bhasha, apna code.</p>
+<footer class="footer">
+  <div class="footer-inner">
+    AdarshLang &mdash; a Hinglish programming language. Apni bhasha, apna code.
   </div>
-</div>
+</footer>
 
 <script>
 var snippets = {
@@ -1120,7 +1120,7 @@ async function runCode(event) {
     var label = document.getElementById('output-label');
     var dot = document.getElementById('status-dot');
 
-    btn.innerHTML = '<span class="spin">\u25cc</span>&nbsp; Running...';
+    btn.innerHTML = '<span class="spin">\\u25CC</span>&nbsp;Running';
     btn.disabled = true;
     pre.className = '';
     pre.textContent = '';
@@ -1151,7 +1151,7 @@ async function runCode(event) {
         dot.className = 'status-dot err';
         pre.textContent = 'Network error: ' + err.message;
     } finally {
-        btn.innerHTML = '\u25b6\u00a0 Run Code';
+        btn.innerHTML = 'Run';
         btn.disabled = false;
         pre.scrollIntoView({behavior: 'smooth', block: 'nearest'});
     }

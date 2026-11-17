@@ -1,0 +1,31 @@
+# List concatenation (+), repetition (*), equality and empty lists
+
+badlo a = [1, 2];
+badlo b = a + [3, 4];
+dikhao(a);
+dikhao(b);
+dikhao(length(b + b));
+
+dikhao([0] * 3);
+dikhao(["x"] * 2);
+dikhao([1, 2] * 0);
+dikhao(a + []);
+dikhao([[1, 2], [3]] + [[4]]);
+
+dikhao([1, 2] == [1, 2]);
+dikhao([1, 2] == [2, 1]);
+dikhao([1, 2] != [1]);
+
+badlo empty = [];
+dikhao(length(empty));
+dikhao(empty);
+push(empty, "first");
+push(empty, 2.5);
+dikhao(empty);
+dikhao(length(empty));
+
+# list concatenation does not mutate operands
+badlo original = [9];
+badlo extended = original + [10];
+dikhao(original);
+dikhao(extended);

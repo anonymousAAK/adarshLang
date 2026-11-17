@@ -1,0 +1,66 @@
+# Anonymous kaam(...) {...} closures: counters, adders, late binding, composition, and self-reference via a variable
+
+kaam makeCounter(start) {
+    badlo count = start;
+    wapas kaam () {
+        count += 1;
+        wapas count;
+    };
+}
+
+badlo c1 = makeCounter(0);
+badlo c2 = makeCounter(100);
+c1();
+c1();
+dikhao(c1());
+dikhao(c2());
+dikhao(c1());
+
+kaam makeAdder(n) {
+    wapas kaam (x) {
+        wapas x + n;
+    };
+}
+badlo add5 = makeAdder(5);
+dikhao(add5(10));
+dikhao(map(add5, [1, 2]));
+
+# closure sees the latest value of a captured variable
+badlo base = 2;
+badlo scale = kaam (x) {
+    wapas x * base;
+};
+dikhao(scale(3));
+base = 10;
+dikhao(scale(3));
+
+kaam compose(f, g) {
+    wapas kaam (x) {
+        wapas f(g(x));
+    };
+}
+badlo incThenDouble = compose(kaam (x) { wapas x * 2; }, kaam (x) { wapas x + 1; });
+dikhao(incThenDouble(4));
+
+# two counters created by the same factory do not share state
+badlo a1 = makeCounter(10);
+a1();
+dikhao(a1());
+dikhao(c2());
+
+# an anonymous function that refers to itself through a variable
+badlo fact2 = kaam (n) {
+    agar (n <= 1) {
+        wapas 1;
+    }
+    wapas n * fact2(n - 1);
+};
+dikhao(fact2(6));
+
+# anonymous function as a sort predicate substitute: filter by threshold
+badlo bigger = kaam (limit) {
+    wapas kaam (v) {
+        wapas v > limit;
+    };
+};
+dikhao(filter(bigger(3), [1, 5, 2, 8]));

@@ -1,0 +1,37 @@
+# String concatenation, repetition, escapes, indexing and comparison
+
+badlo greeting = "Namaste";
+badlo name = "Adarsh";
+
+dikhao(greeting + ", " + name + "!");
+dikhao("ab" * 3);
+dikhao(3 * "xy");
+dikhao("-" * 10);
+dikhao("" + "");
+dikhao(length("") + length(greeting));
+
+# escape sequences
+dikhao("Tab:\tEnd");
+dikhao("quote: \"hi\"");
+dikhao("back\\slash");
+dikhao("line1\nline2");
+
+# indexing a string (negative too)
+dikhao(greeting[0]);
+dikhao(greeting[-1]);
+dikhao(name[2] + name[-2]);
+
+# string comparison is lexicographic (uppercase sorts before lowercase)
+dikhao("abc" < "abd");
+dikhao("Zebra" < "apple");
+dikhao("apple" != "Apple");
+dikhao("10" == "10");
+dikhao("10" == 10);
+
+# building up a string in a loop
+badlo acc = "";
+ginnati (badlo i = 0; i < 4; i += 1) {
+    acc = acc + shabdme(i) + ";";
+}
+dikhao(acc);
+dikhao(length(acc));

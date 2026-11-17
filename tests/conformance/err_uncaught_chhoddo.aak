@@ -1,0 +1,5 @@
+# Expected: uncaught user exception (chhoddo with no pakdo around it)
+dikhao("line 1");
+dikhao("line 2");
+chhoddo("kuch galat ho gaya");
+dikhao("yeh nahi chhapega");

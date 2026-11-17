@@ -1,0 +1,69 @@
+# Return values: functions without wapas return their last statement's value, wapas; returns khali,
+# and wapas inside nested blocks exits the whole function
+
+kaam doubleIt(x) {
+    x * 2;
+}
+
+kaam logOnly(msg) {
+    dikhao(msg);
+}
+
+kaam fromLet() {
+    badlo q = 5;
+}
+
+kaam early(n) {
+    agar (n < 0) {
+        wapas;
+    }
+    wapas n * 10;
+}
+
+kaam firstEven(xs) {
+    ke_liye (badlo x : xs) {
+        agar (x % 2 == 0) {
+            wapas x;
+        }
+    }
+    wapas khali;
+}
+
+kaam sign(n) {
+    agar (n > 0) {
+        "pos";
+    } warna agar (n < 0) {
+        "neg";
+    }
+}
+
+kaam noValueBranch(n) {
+    agar (n > 0) {
+        wapas "yes";
+    }
+}
+
+dikhao(doubleIt(21));
+
+badlo r1 = logOnly("hello from logOnly");
+dikhao(r1);
+dikhao(fromLet());
+
+dikhao(early(-1));
+dikhao(early(4));
+
+dikhao(firstEven([1, 3, 6, 8]));
+dikhao(firstEven([1, 3]));
+
+dikhao(sign(5));
+dikhao(sign(-5));
+dikhao(sign(0));
+
+dikhao(noValueBranch(1));
+dikhao(noValueBranch(-1));
+
+# returning a dict and a list
+kaam pair(a, b) {
+    wapas [a, b];
+}
+dikhao(pair("x", khali));

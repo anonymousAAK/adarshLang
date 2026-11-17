@@ -1,0 +1,2 @@
+42
+ERROR: AdarshRuntimeError: Attempted to call a non-callable value in AdarshLang.

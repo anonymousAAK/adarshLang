@@ -1,0 +1,49 @@
+# jabtak (while) loops with bas (break) and aage_badho (continue)
+
+badlo i = 0;
+badlo odd_sum = 0;
+jabtak (i < 10) {
+    i += 1;
+    agar (i % 2 == 0) {
+        aage_badho;
+    }
+    agar (i > 7) {
+        bas;
+    }
+    odd_sum += i;
+}
+dikhao(i);
+dikhao(odd_sum);
+
+# loop that runs until a condition inside breaks it
+badlo n = 1;
+jabtak (sahi_hai_be) {
+    n = n * 2;
+    agar (n > 100) {
+        bas;
+    }
+}
+dikhao(n);
+
+# while with a condition that is initially false
+badlo never = 0;
+jabtak (never > 0) {
+    dikhao("kabhi nahi");
+}
+dikhao("loop chala hi nahi");
+
+# collecting values with continue and break
+badlo collected = [];
+badlo k = 0;
+jabtak (k < 20) {
+    k += 1;
+    agar (k % 3 != 0) {
+        aage_badho;
+    }
+    push(collected, k);
+    agar (length(collected) == 4) {
+        bas;
+    }
+}
+dikhao(collected);
+dikhao(k);

@@ -1,0 +1,31 @@
+# Truthiness in agar / jabtak / nahin: 0, 0.0, "", [], {}, khali are falsy
+
+ke_liye (badlo v : [0, 1, -1, 0.0, 2.5, "", "x", [], [0], {}, {"a": 1}, khali, sahi_hai_be, jhuth]) {
+    agar (v) {
+        dikhao("sach");
+    } warna {
+        dikhao("jhooth");
+    }
+}
+
+# nahin of falsy values
+dikhao(!0);
+dikhao(!"");
+dikhao(!khali);
+dikhao(!{});
+dikhao(!"0");
+dikhao(!12);
+
+# jabtak uses the same truthiness
+badlo countdown = 3;
+jabtak (countdown) {
+    dikhao(countdown);
+    countdown -= 1;
+}
+dikhao("khatam");
+
+badlo queue = [1, 2];
+jabtak (length(queue)) {
+    pop(queue);
+}
+dikhao(length(queue));

@@ -12,6 +12,19 @@ python adarsh_lang_compiler.py test.aak
 * Run the interactive REPL with `python adarsh_lang_compiler.py --repl` and finish a snippet with a blank line.
 * Launch the web runner locally by setting `FLASK_APP=app.py` and executing `flask run`.
 
+## Rust implementation (native, ~15× faster)
+
+`adarsh-rs/` contains a Rust port of the whole pipeline. It gives the same output
+and error messages as the Python version, checked by a differential test suite
+in `tests/`.
+
+```bash
+cd adarsh-rs && cargo build --release
+./target/release/adarsh ../test.aak
+```
+
+See [adarsh-rs/README.md](adarsh-rs/README.md) for details and the bugs the port fixes.
+
 ## Language Features
 
 | Feature | Syntax | Notes |

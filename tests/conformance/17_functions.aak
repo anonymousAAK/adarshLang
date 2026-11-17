@@ -1,0 +1,55 @@
+# Named functions: default arguments, baaki (varargs), function values, and calls with fewer args
+
+kaam greet(naam, greeting = "Namaste", punctuation = "!") {
+    wapas greeting + ", " + naam + punctuation;
+}
+
+dikhao(greet("Adarsh"));
+dikhao(greet("Ravi", "Hello"));
+dikhao(greet("Meera", "Hi", "?"));
+
+kaam sumAll(baaki nums) {
+    badlo t = 0;
+    ke_liye (badlo n : nums) {
+        t += n;
+    }
+    wapas t;
+}
+
+dikhao(sumAll());
+dikhao(sumAll(7));
+dikhao(sumAll(1, 2, 3));
+
+# fixed parameter followed by varargs
+kaam header(title, baaki tags) {
+    wapas title + ":" + join(tags, "|");
+}
+dikhao(header("T"));
+dikhao(header("T", "a", "b"));
+
+# a function stored in a variable keeps its defaults
+badlo hello = greet;
+dikhao(hello("Kiran"));
+
+# defaults are re-evaluated at each call
+kaam addTo(list, item = 0) {
+    push(list, item);
+    wapas length(list);
+}
+badlo box = [];
+dikhao(addTo(box));
+dikhao(addTo(box, 5));
+dikhao(box);
+
+# default that is a string used for lookups
+kaam lookup(table, key, fallback = "nahi mila") {
+    wapas nikalo(table, key, fallback);
+}
+badlo phone = {"ravi": "99999"};
+dikhao(lookup(phone, "ravi"));
+dikhao(lookup(phone, "meera"));
+dikhao(lookup(phone, "meera", "default"));
+
+# calling a varargs function with a list built at runtime
+badlo parts = [1, 2, 3, 4];
+dikhao(sumAll(parts[0], parts[3]));

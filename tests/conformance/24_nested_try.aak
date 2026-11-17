@@ -1,0 +1,73 @@
+# Nested try blocks: rethrowing from a catch block, errors thrown from called functions, and bas inside try
+
+pakdo {
+    pakdo {
+        dikhao("andar try");
+        chhoddo("pehli galti");
+    } chhoddo (inner) {
+        dikhao("andar catch: " + inner);
+        chhoddo("doosri galti: " + inner);
+    }
+    dikhao("yeh nahi chhapega");
+} chhoddo (outer) {
+    dikhao("bahar catch: " + outer);
+}
+dikhao("aage chalta hai");
+
+# error thrown in a function called by an inner try, caught by the outer try
+kaam level3() {
+    chhoddo(3);
+}
+
+kaam level2() {
+    level3();
+    dikhao("level2 yahan nahi pahunchega");
+}
+
+pakdo {
+    pakdo {
+        level2();
+    } chhoddo (e) {
+        dikhao("level2 catch: " + shabdme(e));
+        chhoddo(e * 100);
+    }
+} chhoddo (e) {
+    dikhao("outer got: " + shabdme(e));
+}
+
+# a try that succeeds inside an outer try that is never triggered
+pakdo {
+    pakdo {
+        dikhao("inner ok");
+    } chhoddo (e) {
+        dikhao("inner catch");
+    }
+    dikhao("outer block finishes");
+} chhoddo (e) {
+    dikhao("outer catch");
+}
+
+# bas inside try inside a loop breaks the loop
+badlo steps = 0;
+jabtak (sahi_hai_be) {
+    pakdo {
+        steps += 1;
+        agar (steps == 3) {
+            bas;
+        }
+    } chhoddo (e) {
+        dikhao("kabhi nahi");
+    }
+}
+dikhao(steps);
+
+# chhoddo with a computed value inside nested catch blocks
+pakdo {
+    pakdo {
+        chhoddo(10);
+    } chhoddo (a) {
+        chhoddo(a * 2);
+    }
+} chhoddo (b) {
+    dikhao(b + 1);
+}

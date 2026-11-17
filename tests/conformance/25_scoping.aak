@@ -1,0 +1,82 @@
+# Scoping: badlo declares in the innermost block, assignment reaches the outer variable, shadowing ends with the block
+
+badlo x = 1;
+dikhao(x);
+agar (sahi_hai_be) {
+    badlo x = 2;
+    dikhao(x);
+    x = 3;
+    dikhao(x);
+}
+dikhao(x);
+
+# plain assignment inside a block changes the outer variable
+badlo total = 0;
+agar (sahi_hai_be) {
+    total = total + 10;
+}
+dikhao(total);
+
+# block-local variables inside a loop body are fresh on each iteration
+ginnati (badlo i = 0; i < 3; i += 1) {
+    badlo sq = i * i;
+    total += sq;
+}
+dikhao(total);
+
+# a badlo without initializer starts as khali on every iteration
+badlo n = 0;
+jabtak (n < 2) {
+    badlo fresh;
+    dikhao(fresh);
+    fresh = n;
+    n += 1;
+}
+
+# nested shadowing
+badlo depth = "top";
+agar (sahi_hai_be) {
+    agar (sahi_hai_be) {
+        badlo depth = "deep";
+        dikhao(depth);
+    }
+    dikhao(depth);
+}
+dikhao(depth);
+
+# loop variable with the same name as an outer variable
+badlo label = "bahar";
+ke_liye (badlo label in ["a"]) {
+    dikhao(label);
+}
+dikhao(label);
+
+# a function body shadows a global without changing it
+kaam shadowed() {
+    badlo x = 99;
+    wapas x;
+}
+kaam readOuter() {
+    wapas x;
+}
+dikhao(shadowed());
+dikhao(readOuter());
+dikhao(x);
+
+# a function assigning to a global name changes the global
+kaam bumpTotal() {
+    total = total + 1;
+}
+bumpTotal();
+bumpTotal();
+dikhao(total);
+
+# else branch scope is separate from the if branch
+badlo flag = "orig";
+agar (jhuth) {
+    badlo flag = "if";
+} warna {
+    badlo flag = "else";
+    dikhao(flag);
+}
+dikhao(flag);

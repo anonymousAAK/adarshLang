@@ -1,0 +1,5 @@
+# Expected: AdarshRuntimeError, list index out of range
+badlo xs = [1, 2, 3];
+dikhao(xs[2]);
+dikhao(xs[3]);
+dikhao("yeh nahi chhapega");

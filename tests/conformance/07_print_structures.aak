@@ -1,0 +1,30 @@
+# Printing nested structures. Top-level booleans print as sahi_hai_be / jhuth and
+# khali as khali, but values nested inside lists and dicts use Python repr style.
+
+badlo data = {"naam": "Adarsh", "active": sahi_hai_be, "parent": khali, "tags": ["a", "b"], "meta": {"score": 9.5, "ok": jhuth}};
+dikhao(data);
+dikhao(data["meta"]);
+dikhao(data["tags"]);
+
+dikhao([khali, sahi_hai_be, jhuth, "x", 1]);
+dikhao([[]]);
+dikhao([[1, [2, [3]]], "deep"]);
+dikhao([]);
+dikhao({});
+dikhao(["it's", "plain"]);
+dikhao(["say \"hi\""]);
+dikhao([1.0, 2.5, -3]);
+
+dikhao(khali);
+dikhao(sahi_hai_be);
+dikhao(jhuth);
+dikhao("plain string");
+
+badlo matrix = [[1, 2, 3], [4, 5, 6]];
+dikhao(matrix);
+dikhao(length(matrix));
+dikhao(matrix[1]);
+
+badlo nested = {"outer": {"inner": [sahi_hai_be, khali]}};
+dikhao(nested);
+dikhao(nested["outer"]["inner"]);

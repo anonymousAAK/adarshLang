@@ -1,0 +1,10 @@
+andar try
+andar catch: pehli galti
+bahar catch: doosri galti: pehli galti
+aage chalta hai
+level2 catch: 3
+outer got: 300
+inner ok
+outer block finishes
+3
+21

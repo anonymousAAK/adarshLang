@@ -1,0 +1,53 @@
+# Compound assignment (+= -= *= /= %=) on variables, list elements, dict entries, and dhacha attributes
+
+badlo n = 10;
+n += 5;
+dikhao(n);
+n -= 3;
+dikhao(n);
+n *= 2;
+dikhao(n);
+n /= 6;
+dikhao(n);
+n %= 3;
+dikhao(n);
+
+badlo xs = [1, 2, 3];
+xs[0] += 10;
+xs[1] -= 1;
+xs[2] *= 3;
+dikhao(xs);
+xs[2] /= 2;
+dikhao(xs);
+xs[-1] %= 4;
+dikhao(xs);
+
+badlo d = {"hits": 1};
+d["hits"] += 4;
+dikhao(d["hits"]);
+d["hits"] *= 3;
+dikhao(d);
+
+dhacha Khata { balance, naam };
+badlo k = Khata { balance: 100, naam: "Savings" };
+k.balance -= 25;
+k.balance *= 2;
+dikhao(k.balance);
+k.balance /= 5;
+dikhao(k.balance);
+k.naam += "!";
+dikhao(k.naam);
+
+# compound assignment inside a loop
+badlo total = 0;
+ginnati (badlo i = 1; i <= 5; i += 1) {
+    total += i * i;
+}
+dikhao(total);
+
+# string accumulation with +=
+badlo sentence = "";
+ke_liye (badlo word : ["ek", "do", "teen"]) {
+    sentence += word + " ";
+}
+dikhao(sentence);

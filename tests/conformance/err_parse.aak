@@ -1,0 +1,6 @@
+# Expected: parse error (statement is missing its ';' before the next statement)
+dikhao("pehli line");
+dikhao("doosri line");
+badlo x = 5
+dikhao(x);
+dikhao("yeh nahi chhapega");

@@ -1,0 +1,54 @@
+# Collection builtins: length, push, pop, rakho, nikalo, join, split, sort, reverse, slice, contains, find, keys, values, range
+
+badlo xs = [3, 1, 2];
+push(xs, 9);
+dikhao(xs);
+
+badlo last = pop(xs);
+dikhao(last);
+badlo first = pop(xs, 0);
+dikhao(first);
+dikhao(xs);
+dikhao(length(xs));
+
+dikhao(sort([3, 1, 2]));
+dikhao(sort(["pear", "apple", "fig"]));
+dikhao(reverse([1, 2, 3]));
+dikhao(reverse("namaste"));
+
+dikhao(slice([10, 20, 30, 40, 50], 1, 4));
+dikhao(slice([10, 20, 30], 1));
+dikhao(slice("AdarshLang", 0, 6));
+dikhao(slice("AdarshLang", 7));
+
+dikhao(find([10, 20, 30], 20));
+dikhao(find([1], 5));
+dikhao(find("AdarshLang", "Lang"));
+dikhao(find("abc", "z"));
+
+dikhao(contains([1, 2], 2));
+dikhao(contains([1, 2], "2"));
+dikhao(contains("namaste duniya", "duniya"));
+
+dikhao(join([1, 2, 3], "-"));
+dikhao(join(["a", "b"]));
+dikhao(split("a,b,,c", ","));
+dikhao(split("solo", ","));
+
+dikhao(range(4));
+dikhao(range(1, 10, 3));
+dikhao(range(10, 0, -3));
+dikhao(range(3, 1));
+
+badlo rec = {"naam": "Adarsh"};
+rakho(rec, "umar", 24);
+dikhao(nikalo(rec, "umar"));
+dikhao(nikalo(rec, "shahar", "unknown"));
+dikhao(keys(rec));
+dikhao(values(rec));
+dikhao(length(rec));
+
+dikhao(nikalo([5, 6], 9, 0));
+dikhao(nikalo("abc", 1));
+dikhao(nikalo([5, 6], -1));
+dikhao(length("namaste"));

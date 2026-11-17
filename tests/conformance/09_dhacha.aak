@@ -1,0 +1,49 @@
+# Dhacha records: declared at top level, constructed with Name { field: value }.
+# Missing fields are filled with khali. Attribute access and assignment work like dict fields.
+
+dhacha Vyakti { naam, umar, shahar };
+
+kaam banao(naam, umar = 18) {
+    wapas Vyakti { naam: naam, umar: umar };
+}
+
+badlo a = banao("Adarsh", 24);
+dikhao(a.naam);
+dikhao(a.umar);
+dikhao(a.shahar);
+
+a.shahar = "Indore";
+dikhao(a.shahar);
+
+a.umar += 1;
+a.umar *= 2;
+dikhao(a.umar);
+
+badlo b = banao("Ravi");
+dikhao(b.naam + " / " + shabdme(b.umar));
+dikhao(a.umar > b.umar);
+
+# keys and values hide the internal type marker
+dikhao(keys(a));
+dikhao(values(a));
+dikhao(nikalo(a, "naam"));
+
+# records can get extra fields at runtime via rakho
+rakho(a, "pincode", 452001);
+dikhao(a.pincode);
+
+# type check
+dikhao(prakar(a));
+dikhao(prakar(b));
+
+# a dhacha built with only some fields
+badlo c = Vyakti { naam: "C" };
+dikhao(c.naam);
+dikhao(c.umar);
+dikhao(c);
+
+# records inside a list
+badlo people = [banao("Meera", 30), banao("Kiran", 41)];
+ke_liye (badlo p : people) {
+    dikhao(p.naam + " is " + shabdme(p.umar));
+}

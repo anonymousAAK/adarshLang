@@ -1,0 +1,6 @@
+# Expected: semantic error, reference to a variable that was never declared
+dikhao("shuru");
+badlo naam = "Adarsh";
+dikhao(naam);
+dikhao(naam_nahin);
+dikhao("yeh nahi chhapega");

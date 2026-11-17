@@ -1,0 +1,40 @@
+# Comparison operators and the unary 'nahin' operator (written as '!').
+# Note: '&&' and '||' are not used here; the lexer does not currently accept them.
+
+dikhao(3 == 3);
+dikhao(3 != 3);
+dikhao(2 < 3);
+dikhao(3 < 2);
+dikhao(3 <= 2);
+dikhao(5 >= 5);
+dikhao(6 > 5);
+dikhao(1 == 1.0);
+dikhao(2.5 > 2);
+dikhao(khali == khali);
+dikhao(khali != 0);
+
+# nahin (!) negation
+dikhao(!sahi_hai_be);
+dikhao(!jhuth);
+dikhao(!(2 > 3));
+dikhao(!(2 < 3));
+dikhao(!!5);
+dikhao(!0 == sahi_hai_be);
+
+badlo x = 7;
+dikhao(!(x % 2 == 0));
+dikhao(!(x > 10));
+dikhao(!(x == 7) == jhuth);
+
+# comparisons used to pick a branch
+agar (x >= 5) {
+    dikhao("bada hai");
+} warna agar (x == 5) {
+    dikhao("barabar");
+} warna {
+    dikhao("chhota");
+}
+
+agar (!(x < 0)) {
+    dikhao("positive ya zero");
+}

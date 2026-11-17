@@ -1,0 +1,40 @@
+# Dictionaries with int, string and bool keys, plus rakho / nikalo / keys / values / contains.
+# Keys 0 and 1 are avoided alongside booleans because Python treats False == 0 and True == 1 as the same key.
+
+badlo m = {"a": 1, 2: "two", jhuth: "no"};
+dikhao(m);
+dikhao(m[jhuth]);
+dikhao(m[2]);
+dikhao(m["a"]);
+
+rakho(m, sahi_hai_be, "yes");
+dikhao(m);
+dikhao(m[sahi_hai_be]);
+dikhao(length(m));
+
+dikhao(keys(m));
+dikhao(values(m));
+dikhao(contains(m, 2));
+dikhao(contains(m, "zzz"));
+
+# int keys built in a loop
+badlo squares = {};
+ke_liye (badlo i in range(1, 4)) {
+    rakho(squares, i, i * i);
+}
+dikhao(squares);
+dikhao(nikalo(squares, 3));
+
+# nikalo with a default for missing keys
+dikhao(nikalo(squares, 99, "missing"));
+dikhao(nikalo(m, "nope", -1));
+
+# overwrite an existing key
+rakho(squares, 2, "updated");
+dikhao(squares);
+
+# iterate a dict with string keys
+badlo scores = {"ravi": 80, "meera": 95};
+ke_liye (badlo who in scores) {
+    dikhao(who + " -> " + shabdme(scores[who]));
+}

@@ -1,0 +1,3 @@
+theek
+55
+ERROR: TypeError: can only concatenate str (not "int") to str

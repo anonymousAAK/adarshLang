@@ -1,0 +1,54 @@
+# Math and text builtins: abs, floor, ceil, min_val, max_val, round_val, upper, lower, trim, replace,
+# prakar, shabdme, sankhya
+
+dikhao(abs(-3));
+dikhao(abs(-2.5));
+dikhao(abs(4));
+
+dikhao(floor(4.7));
+dikhao(floor(-2.5));
+dikhao(ceil(4.1));
+dikhao(ceil(-4.9));
+
+dikhao(min_val(10, 20));
+dikhao(max_val(10, 20.5));
+dikhao(min_val(-1, -7));
+
+# round_val uses Python's round(), which rounds halves to the even neighbour
+dikhao(round_val(2.5));
+dikhao(round_val(3.5));
+dikhao(round_val(4.6));
+dikhao(round_val(-2.5));
+dikhao(round_val(0.4));
+
+dikhao(upper("namaste"));
+dikhao(lower("HeLLo"));
+dikhao(trim("   namaste   ") + "|");
+dikhao(replace("Hello World", "World", "Duniya"));
+dikhao(replace("a-b-c", "-", ""));
+dikhao(replace("aaaa", "aa", "b"));
+
+# prakar reports a type name
+dikhao(prakar(42));
+dikhao(prakar(4.2));
+dikhao(prakar("x"));
+dikhao(prakar(sahi_hai_be));
+dikhao(prakar([1]));
+dikhao(prakar({"a": 1}));
+dikhao(prakar(khali));
+dikhao(prakar(kaam (x) { wapas x; }));
+
+# shabdme converts to text
+badlo s = shabdme(123);
+dikhao(s + "!");
+dikhao(shabdme(sahi_hai_be));
+dikhao(shabdme(jhuth));
+dikhao(shabdme(khali));
+dikhao(shabdme(3.0));
+
+# sankhya converts text to a number
+dikhao(sankhya("42") + 1);
+dikhao(sankhya("3.5") * 2);
+dikhao(sankhya(7));
+dikhao(sankhya(" 8 ") + 0);
+dikhao(prakar(sankhya("12")));

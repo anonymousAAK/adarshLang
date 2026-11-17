@@ -1,0 +1,6 @@
+Shuru
+Galti: String ke andar ka character badal nahi sakte. Nayi string banao (jaise replace() se).
+  --> err_string_assign.aak:3:6
+   |
+ 3 | s[0] = "H";
+   |      ^

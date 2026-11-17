@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    working-directory: adarsh-rs
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: adarsh-rs
+      - name: Unit, conformance and doc tests
+        run: cargo test --release
+      - name: Run example programs
+        shell: bash
+        run: |
+          for f in ../examples/*.aak; do
+            echo "== $f"
+            ./target/release/adarsh "$f" < /dev/null > /dev/null
+          done
+
+  lint:
+    name: Lint + WebAssembly build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: adarsh-rs
+      - run: cargo fmt --check
+      - run: cargo clippy --release --all-targets -- -D warnings
+      - run: cargo clippy --release --lib --target wasm32-unknown-unknown -- -D warnings
+      - name: Build the playground's WebAssembly module
+        run: cargo rustc --release --lib --target wasm32-unknown-unknown --crate-type cdylib

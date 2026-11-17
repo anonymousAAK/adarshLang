@@ -1,2 +1,6 @@
 3
-ERROR: AdarshRuntimeError: Index out of range while accessing collection in AdarshLang.
+Galti: Index 3 bahar hai: List ki length 3 hai, isliye index 0 se 2 tak (ya -1 se -3).
+  --> err_index_range.aak:4:10
+   |
+ 4 | dikhao(xs[3]);
+   |          ^

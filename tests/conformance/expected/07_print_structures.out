@@ -1,13 +1,13 @@
-{'naam': 'Adarsh', 'active': True, 'parent': None, 'tags': ['a', 'b'], 'meta': {'score': 9.5, 'ok': False}}
-{'score': 9.5, 'ok': False}
-['a', 'b']
-[None, True, False, 'x', 1]
+{"naam": "Adarsh", "active": sahi_hai_be, "parent": khali, "tags": ["a", "b"], "meta": {"score": 9.5, "ok": jhuth}}
+{"score": 9.5, "ok": jhuth}
+["a", "b"]
+[khali, sahi_hai_be, jhuth, "x", 1]
 [[]]
-[[1, [2, [3]]], 'deep']
+[[1, [2, [3]]], "deep"]
 []
 {}
-["it's", 'plain']
-['say "hi"']
+["it's", "plain"]
+["say \"hi\""]
 [1.0, 2.5, -3]
 khali
 sahi_hai_be
@@ -16,5 +16,5 @@ plain string
 [[1, 2, 3], [4, 5, 6]]
 2
 [4, 5, 6]
-{'outer': {'inner': [True, None]}}
-[True, None]
+{"outer": {"inner": [sahi_hai_be, khali]}}
+[sahi_hai_be, khali]

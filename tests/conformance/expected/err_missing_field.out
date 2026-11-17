@@ -1,0 +1,5 @@
+Galti: Dhacha Vyakti mein 'umar' naam ka field ya method nahi hai.
+  --> err_missing_field.aak:3:9
+   |
+ 3 | dikhao(p.umar);
+   |         ^

@@ -1,0 +1,129 @@
+# AdarshLang demo: exercises every highlighted construct.
+# Open this file to eyeball the grammar.
+
+# ---- literals and declarations
+badlo x = 5;
+badlo pi = 3.14;
+badlo half = .5;
+badlo big = 1e5;
+badlo small = 2.5e-3;
+badlo million = 1_000_000;
+badlo ok = sahi_hai_be;
+badlo no = jhuth;
+badlo nothing = khali;
+badlo items = [1, 2, 3];
+
+# ---- strings, escapes and interpolation
+badlo msg = "Namaste\n\tduniya \"ji\" \\ \0 \{ literal \} ok";
+dikhao("x ka value: { x }, double: { x * 2 }");
+dikhao("nested: { upper("hi") }");
+
+# ---- operators
+badlo sum = x + 2 - 1 * 3 / 4 % 2 ** 2;
+x += 1;
+x -= 1;
+x *= 2;
+x /= 2;
+x %= 3;
+agar (x >= 1 aur x <= 10 ya nahin (x == 5)) {
+    dikhao("range");
+}
+agar (x != 0 && x < 3 || !jhuth) {
+    dikhao("logic");
+}
+
+# ---- control flow
+agar (x > 3) {
+    dikhao("bada");
+} warna agar (x == 3) {
+    dikhao("barabar");
+} warna {
+    dikhao("chota");
+}
+
+jabtak (x > 0) {
+    x -= 1;
+    agar (x == 2) { aage_badho; }
+    agar (x == 1) { bas; }
+}
+
+ginnati (badlo i = 0; i < 10; i += 1) {
+    dikhao(i);
+}
+
+ke_liye (badlo v in items) {
+    dikhao(v);
+}
+
+chuno (x) {
+    case 1, 2:
+        dikhao("a");
+    warna_case: {
+        dikhao("baaki");
+    }
+}
+
+# ---- functions and methods
+kaam naam(a, b = 2, baaki rest) {
+    wapas a + b;
+}
+
+kaam helper(n) {
+    wapas naam(n);
+}
+
+# ---- records
+dhacha Vyakti { naam, umar };
+
+kaam Vyakti.naam_dikhao() {
+    wapas yeh.naam;
+}
+
+badlo v1 = Vyakti { naam: "Adarsh", umar: 20 };
+v1.naam_dikhao();
+
+# ---- builtins
+badlo nums = range(1, 10);
+badlo doubled = map(kaam (n) { wapas n * 2; }, nums);
+badlo evens = filter(kaam (n) { wapas n % 2 == 0; }, nums);
+badlo total = reduce(kaam (acc, n) { wapas acc + n; }, nums, 0);
+push(nums, 11);
+pop(nums);
+badlo marks = {"math": 90};
+rakho(marks, "hindi", 85);
+nikalo(marks, "science", 0);
+hatao(marks, "math");
+badlo n = length(nums);
+badlo r = random_number(1, 6);
+badlo t = current_time();
+abs(-3);
+floor(2.7);
+ceil(2.1);
+round_val(2.5);
+upper("abc");
+lower("ABC");
+trim("  x  ");
+replace("aaa", "a", "b");
+join(["a", "b"], ",");
+split("a,b", ",");
+prakar(1);
+shabdme(1);
+sankhya("5");
+keys(v1);
+values(v1);
+contains(nums, 3);
+sort(nums);
+reverse(nums);
+slice(nums, 0, 2);
+find(nums, 3);
+min_val(3, 7);
+max_val(3, 7);
+badlo jawab = padho("Naam batao: ");
+# lao "utils.aak";   imports another file
+
+# ---- error handling
+pakdo {
+    chhoddo("kuch galat");
+} chhoddo (err) {
+    dikhao(err);
+}

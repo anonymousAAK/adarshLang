@@ -1,0 +1,3 @@
+dhacha Vyakti { naam };
+badlo p = Vyakti { naam: "A" };
+dikhao(p.umar);

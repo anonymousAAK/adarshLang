@@ -1,0 +1,3 @@
+badlo s = "hello";
+dikhao("Shuru");
+s[0] = "H";

@@ -1,1 +1,5 @@
-ERROR: AdarshSemanticError: 'bas' (break) can only be used inside loops in AdarshLang.
+Soch: 'bas' sirf loop (jabtak / ginnati / ke_liye) ke andar chal sakta hai.
+  --> err_bas_outside.aak:6:1
+   |
+ 6 | bas;
+   | ^

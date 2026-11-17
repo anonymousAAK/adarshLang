@@ -1,1 +1,5 @@
-ERROR: AdarshSemanticError: Variable 'naam_nahin' not declared in AdarshLang scope.
+Soch: 'naam_nahin' naam ka variable nahi mila. Pehle 'badlo naam_nahin = ...;' se banao.
+  --> err_undeclared.aak:5:8
+   |
+ 5 | dikhao(naam_nahin);
+   |        ^

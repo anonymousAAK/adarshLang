@@ -1,5 +1,6 @@
-//! AST definitions (port of `adarsh_lang/ast.py`).
+//! Abstract syntax tree. Every expression and statement carries its source [`Pos`].
 
+pub use crate::error::Pos;
 use num_bigint::BigInt;
 use std::rc::Rc;
 
@@ -36,8 +37,8 @@ impl BinOp {
             BinOp::Gt => ">",
             BinOp::Lte => "<=",
             BinOp::Gte => ">=",
-            BinOp::And => "&&",
-            BinOp::Or => "||",
+            BinOp::And => "aur",
+            BinOp::Or => "ya",
         }
     }
 }
@@ -55,33 +56,62 @@ pub struct Param {
     pub is_varargs: bool,
 }
 
-/// Shared function definition: params + body, referenced by every closure value.
+/// A function definition, shared by every closure created from it.
 #[derive(Debug)]
 pub struct FuncDef {
     pub name: Option<Rc<str>>,
+    /// `Some(type)` for a method declared as `kaam Type.name(...)`.
+    pub method_of: Option<Rc<str>>,
     pub params: Vec<Param>,
     pub body: Vec<Node>,
+    pub pos: Pos,
+}
+
+impl FuncDef {
+    pub fn display_name(&self) -> String {
+        match (&self.method_of, &self.name) {
+            (Some(t), Some(n)) => format!("{t}.{n}"),
+            (None, Some(n)) => n.to_string(),
+            _ => "<anonymous>".into(),
+        }
+    }
 }
 
 #[derive(Debug)]
-pub enum Expr {
+pub enum Part {
+    Lit(Rc<str>),
+    Expr(Expr),
+}
+
+#[derive(Debug)]
+pub struct Expr {
+    pub kind: ExprKind,
+    pub pos: Pos,
+}
+
+#[derive(Debug)]
+pub enum ExprKind {
     Int(i64),
     BigInt(Rc<BigInt>),
     Float(f64),
     Str(Rc<str>),
+    /// String with `{expr}` interpolation.
+    Interp(Vec<Part>),
     Bool(bool),
     Null,
     Var(Rc<str>),
     List(Vec<Expr>),
     Dict(Vec<(Expr, Expr)>),
-    Dhacha { type_name: Rc<str>, fields: Vec<(Rc<str>, Expr)> },
+    Dhacha {
+        type_name: Rc<str>,
+        fields: Vec<(Rc<str>, Expr)>,
+    },
     Binary(Box<Expr>, BinOp, Box<Expr>),
     Unary(UnOp, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
     Index(Box<Expr>, Box<Expr>),
     Attr(Box<Expr>, Rc<str>),
     Func(Rc<FuncDef>),
-    // assignments are expressions in the Python AST (they return the value)
     Assign(Rc<str>, Box<Expr>),
     CompoundAssign(Rc<str>, BinOp, Box<Expr>),
     IndexAssign(Box<Expr>, Box<Expr>, Box<Expr>),
@@ -97,7 +127,13 @@ pub struct SwitchCase {
 }
 
 #[derive(Debug)]
-pub enum Node {
+pub struct Node {
+    pub kind: NodeKind,
+    pub pos: Pos,
+}
+
+#[derive(Debug)]
+pub enum NodeKind {
     Expr(Expr),
     Badlo(Rc<str>, Option<Expr>),
     Dikhao(Expr),

@@ -1,0 +1,88 @@
+{
+  "if": {
+    "prefix": "agar",
+    "body": [
+      "agar (${1:condition}) {",
+      "\t$0",
+      "}"
+    ],
+    "description": "agar (if) block"
+  },
+  "if-else": {
+    "prefix": "agarwarna",
+    "body": [
+      "agar (${1:condition}) {",
+      "\t$2",
+      "} warna {",
+      "\t$0",
+      "}"
+    ],
+    "description": "agar ... warna (if / else) block"
+  },
+  "while": {
+    "prefix": "jabtak",
+    "body": [
+      "jabtak (${1:condition}) {",
+      "\t$0",
+      "}"
+    ],
+    "description": "jabtak (while) loop"
+  },
+  "for": {
+    "prefix": "ginnati",
+    "body": [
+      "ginnati (badlo ${1:i} = 0; $1 < ${2:n}; $1 += 1) {",
+      "\t$0",
+      "}"
+    ],
+    "description": "ginnati (counting for) loop"
+  },
+  "for-in": {
+    "prefix": "keliye",
+    "body": [
+      "ke_liye (badlo ${1:v} in ${2:items}) {",
+      "\t$0",
+      "}"
+    ],
+    "description": "ke_liye (for-each) loop"
+  },
+  "switch": {
+    "prefix": "chuno",
+    "body": [
+      "chuno (${1:x}) {",
+      "\tcase ${2:1}:",
+      "\t\t$0",
+      "\twarna_case: {",
+      "\t}",
+      "}"
+    ],
+    "description": "chuno (switch) with case and warna_case"
+  },
+  "function": {
+    "prefix": "kaam",
+    "body": [
+      "kaam ${1:naam}(${2:a}) {",
+      "\twapas $0;",
+      "}"
+    ],
+    "description": "kaam (function) definition"
+  },
+  "record": {
+    "prefix": "dhacha",
+    "body": [
+      "dhacha ${1:Vyakti} { ${2:naam, umar} };"
+    ],
+    "description": "dhacha (record / struct) declaration"
+  },
+  "try-catch": {
+    "prefix": "pakdo",
+    "body": [
+      "pakdo {",
+      "\t$1",
+      "} chhoddo (${2:err}) {",
+      "\t$0",
+      "}"
+    ],
+    "description": "pakdo ... chhoddo (try / catch) block"
+  }
+}

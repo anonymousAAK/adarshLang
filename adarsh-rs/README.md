@@ -1,73 +1,59 @@
-# AdarshLang in Rust
+# adarshlang (Rust crate)
 
-A native-code port of the AdarshLang compiler pipeline (lexer → parser → semantic
-analyzer → interpreter). It produces the same output and the same error messages
-as the original Python implementation in `../adarsh_lang/`, and runs about 15×
-faster.
+The official AdarshLang implementation: library, `adarsh` CLI, and WebAssembly build for the playground.
+The language itself is documented in the [main README](../README.md).
 
-## Build and run
+## Build
 
 ```bash
-cargo build --release
-./target/release/adarsh ../test.aak      # run a program
-./target/release/adarsh                  # REPL (finish a snippet with a blank line)
+cargo build --release                       # target/release/adarsh
+cargo test --release                        # all tests
+../scripts/build-playground.sh              # WebAssembly → ../playground/adarshlang.wasm
 ```
 
-## Tests
+## Pipeline
 
-```bash
-cargo test --release                     # golden-output suite + targeted tests
-python3 ../tests/compare.py              # live diff against the Python implementation
-python3 ../tests/gen_expected.py         # regenerate golden files from Python
+| File | Role |
+| --- | --- |
+| `src/lexer.rs` | Tokens. Handles string interpolation, number formats, and `aur`/`ya`/`nahin` |
+| `src/parser.rs` | Recursive-descent parser. Hoists `kaam`/`dhacha` definitions to the top of each block |
+| `src/semantics.rs` | Static checks before running: undeclared names, argument counts, `bas` outside loops, record fields |
+| `src/interp.rs` | Tree-walking interpreter: scopes, closures, methods, short-circuit logic, `pakdo` |
+| `src/value.rs` | Values: arbitrary-precision integers, printing, equality, ordering, arithmetic |
+| `src/builtins.rs` | The 35 builtin functions |
+| `src/error.rs` | Hinglish errors with file:line:col and a caret under the problem |
+| `src/loader.rs` | `lao` module loading: filesystem, in-memory (bundled executables), or none (browser) |
+| `src/main.rs` | CLI: `run`, `check`, `build`, REPL |
+| `src/wasm.rs` | WebAssembly exports used by `playground/worker.js` |
+
+## Embedding
+
+```rust
+let out = adarshlang::run_to_string("dikhao(\"Namaste {2 + 3}\");").unwrap();
+assert_eq!(out, "Namaste 5\n");
 ```
 
-`../tests/compare.py` runs every `*.aak` file in the repository root and
-`../tests/conformance/` through both implementations. It compares stdout and
-the final error (`Kind: message`).
+`adarshlang::run_capture(name, source, loader, input_lines)` returns `(output, Option<rendered_error>)`, the same as the playground shows.
 
-## Layout
+## Standalone executables
 
-| File | Python counterpart | Role |
-| --- | --- | --- |
-| `src/lexer.rs` | `tokens.py`, `lexer.py` | Tokens, lexing |
-| `src/ast.rs` | `ast.py` | AST as Rust enums |
-| `src/parser.rs` | `parser.py` | Recursive-descent parser |
-| `src/semantics.rs` | `semantics.py` | Static checks: declarations, arity, `bas` placement |
-| `src/interp.rs` | `runtime.py` | Tree-walking interpreter, scopes, calls |
-| `src/builtins.rs` | `runtime.py` `_builtin_*` | All 33 builtins |
-| `src/value.rs` | Python objects | Values with Python semantics: printing, `==`, ordering, arithmetic |
-| `src/loader.rs` | `os.path` in `lao` | Module loading (pluggable, so it can run with no filesystem) |
-| `src/main.rs` | `pipeline.py` | CLI and REPL |
+`adarsh build app.aak` copies the `adarsh` binary and appends the program, plus any modules it imports with a literal `lao "..."`.
+When the result starts, it finds that payload at the end of its own file and runs it.
 
-## Compatibility notes
+## Limits
 
-The port copies the Python behaviour the language depended on without spelling
-it out:
+- Recursion: 10,000 nested calls in the CLI, 300 in the browser (browsers give WebAssembly a small native stack).
+  Going deeper raises a catchable error instead of crashing.
+- The playground stops programs that run longer than 5 seconds.
 
-- Integers have arbitrary precision (`2 ** 100` is exact) and `int / int`
-  division is correctly rounded.
-- Floats print like Python's `repr`: `0.30000000000000004`, `1e+16`, `5.0`.
-- Values inside lists and dicts print Python-style (`[1, True, None]`), while
-  top-level `dikhao` prints `sahi_hai_be` / `jhuth` / `khali`.
-- `True == 1 == 1.0`, so they share a dict key.
-- `round_val` uses banker's rounding, and `%` takes the sign of the divisor.
-- Type errors use Python's wording, e.g.
-  `can only concatenate str (not "int") to str`.
+## Differences from the original Python version (v0.1)
 
-## Intentional differences (bug fixes)
+v0.2 made Rust the reference implementation and changed some behaviour on purpose:
 
-| Behaviour | Python | Rust |
-| --- | --- | --- |
-| `&&` / `\|\|` | Lexer error, `Unexpected character '&'` | Work, as the README documents |
-| A `jabtak` loop whose last iteration ends in `aage_badho` | Silently stops the rest of the program | Continues normally |
-| Very deep recursion | `RecursionError` after about 110 nested AdarshLang calls | Allows 10,000 nested calls, then `RecursionError` |
-| Printing a function value | `<adarsh_lang.runtime.AdarshFunctionValue object at 0x...>` | `<kaam name>` |
-| `random_number` | Python's Mersenne Twister | xorshift64* (different random sequence) |
-
-## Next steps
-
-1. **WebAssembly build**, so the playground runs `.aak` code in the browser
-   (the loader and output sink are already pluggable).
-2. **Speed:** resolve variables to slots at compile time instead of hashing names,
-   then a bytecode VM.
-3. **Native compilation** of `.aak` programs (Cranelift or LLVM backend).
+- Lists and dicts print in AdarshLang style: `[sahi_hai_be, khali, "text"]`. Records print as `Vyakti { naam: "A" }`.
+- `aur` / `ya` / `nahin` are keywords. `&&` / `||` work (they didn't lex in Python), and all of them short-circuit.
+- `pakdo` also catches runtime errors. The error variable holds the message.
+- A function without `wapas` returns `khali` (Python returned the last statement's value).
+- Functions and `dhacha` can be used before their definition and can be nested.
+- `{expr}` inside strings is interpolation (`\{` for a literal brace; an empty `{}` stays literal).
+- Messages are Hinglish and point at the exact line and column.

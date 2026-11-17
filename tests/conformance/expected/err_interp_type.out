@@ -1,0 +1,5 @@
+Galti: String mein sirf string jod sakte ho, yahan number + string hai. Interpolation "..{x}.." ya shabdme() use karo.
+  --> err_interp_type.aak:2:12
+   |
+ 2 | dikhao("{x + "a"}");
+   |            ^

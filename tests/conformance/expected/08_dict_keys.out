@@ -1,18 +1,18 @@
-{'a': 1, 2: 'two', False: 'no'}
+{"a": 1, 2: "two", jhuth: "no"}
 no
 two
 1
-{'a': 1, 2: 'two', False: 'no', True: 'yes'}
+{"a": 1, 2: "two", jhuth: "no", sahi_hai_be: "yes"}
 yes
 4
-['a', 2, False, True]
-[1, 'two', 'no', 'yes']
+["a", 2, jhuth, sahi_hai_be]
+[1, "two", "no", "yes"]
 sahi_hai_be
 jhuth
 {1: 1, 2: 4, 3: 9}
 9
 missing
 -1
-{1: 1, 2: 'updated', 3: 9}
+{1: 1, 2: "updated", 3: 9}
 ravi -> 80
 meera -> 95

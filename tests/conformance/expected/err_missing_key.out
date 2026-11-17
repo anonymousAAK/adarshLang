@@ -1,2 +1,6 @@
 Adarsh
-ERROR: AdarshRuntimeError: Key not present during dictionary access in AdarshLang.
+Galti: Key "umar" dict mein nahi hai.
+  --> err_missing_key.aak:4:9
+   |
+ 4 | dikhao(d["umar"]);
+   |         ^

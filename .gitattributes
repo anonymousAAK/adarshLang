@@ -1,0 +1,5 @@
+# Golden test outputs are compared byte-for-byte: keep LF on every OS.
+*.aak text eol=lf
+*.out text eol=lf
+*.in  text eol=lf
+*.wasm binary

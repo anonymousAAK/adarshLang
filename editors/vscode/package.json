@@ -1,0 +1,41 @@
+{
+  "name": "adarshlang",
+  "displayName": "AdarshLang",
+  "description": "Syntax highlighting for AdarshLang (.aak), a Hinglish toy language.",
+  "version": "0.2.0",
+  "publisher": "adarshlang",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "adarshlang",
+        "aliases": [
+          "AdarshLang",
+          "adarsh"
+        ],
+        "extensions": [
+          ".aak"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "adarshlang",
+        "scopeName": "source.adarshlang",
+        "path": "./syntaxes/adarshlang.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "adarshlang",
+        "path": "./snippets/adarshlang.json"
+      }
+    ]
+  }
+}

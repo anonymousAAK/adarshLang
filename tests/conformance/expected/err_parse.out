@@ -1,1 +1,5 @@
-ERROR: AdarshParserError: Expected token type ';' but got 'DIKHAO' at line 5, col 1
+Samjho: Line ke ant mein ';' missing hai.
+  --> err_parse.aak:4:12
+   |
+ 4 | badlo x = 5
+   |            ^

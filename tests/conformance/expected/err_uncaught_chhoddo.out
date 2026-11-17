@@ -1,3 +1,7 @@
 line 1
 line 2
-ERROR: AdarshUserException: User exception
+Pakda nahi gaya: kuch galat ho gaya
+  --> err_uncaught_chhoddo.aak:4:9
+   |
+ 4 | chhoddo("kuch galat ho gaya");
+   |         ^

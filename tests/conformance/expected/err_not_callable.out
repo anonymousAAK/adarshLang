@@ -1,2 +1,6 @@
 42
-ERROR: AdarshRuntimeError: Attempted to call a non-callable value in AdarshLang.
+Galti: 'x' (number) function nahi hai, isliye call nahi kar sakte.
+  --> err_not_callable.aak:4:9
+   |
+ 4 | dikhao(x(1));
+   |         ^

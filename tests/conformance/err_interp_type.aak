@@ -1,0 +1,2 @@
+badlo x = 5;
+dikhao("{x + "a"}");

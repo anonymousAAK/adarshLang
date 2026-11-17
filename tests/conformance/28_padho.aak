@@ -1,0 +1,6 @@
+# padho() reads one line of input (here from 28_padho.in)
+badlo naam = padho("Aapka naam? ");
+dikhao("Namaste, {naam}!");
+badlo n = sankhya(padho("Ek number do: "));
+dikhao("{n} ka square {n * n} hai.");
+dikhao(padho());

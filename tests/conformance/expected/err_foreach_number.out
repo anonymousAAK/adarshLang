@@ -1,0 +1,5 @@
+Galti: 'ke_liye' sirf list, string ya dict par chalta hai, number par nahi.
+  --> err_foreach_number.aak:2:21
+   |
+ 2 | ke_liye (badlo i in 5) { total += i; }
+   |                     ^

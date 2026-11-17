@@ -1,3 +1,7 @@
 theek
 55
-ERROR: TypeError: can only concatenate str (not "int") to str
+Galti: String mein sirf string jod sakte ho, yahan string + number hai. Interpolation "..{x}.." ya shabdme() use karo.
+  --> err_type_error.aak:5:10
+   |
+ 5 | dikhao(a + 1);
+   |          ^

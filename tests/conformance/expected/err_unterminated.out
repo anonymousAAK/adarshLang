@@ -1,0 +1,5 @@
+Samjho: String band nahi hui: closing " missing hai.
+  --> err_unterminated.aak:1:8
+   |
+ 1 | dikhao("open string);
+   |        ^

@@ -1,0 +1,3 @@
+# Give the WebAssembly build a larger stack (deep AdarshLang recursion recurses natively).
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "link-arg=-zstack-size=16777216"]

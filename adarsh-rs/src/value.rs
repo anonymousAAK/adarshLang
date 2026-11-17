@@ -1,6 +1,4 @@
-//! Runtime values with Python-compatible semantics (printing, equality,
-//! ordering, truthiness, arithmetic), mirroring how the reference
-//! implementation leaned on Python objects.
+//! Runtime values: printing, equality, ordering, truthiness and arithmetic.
 
 use crate::ast::{BinOp, FuncDef};
 use crate::error::AdarshError;
@@ -23,8 +21,15 @@ pub struct Closure {
 
 impl std::fmt::Debug for Closure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<kaam {}>", self.def.name.as_deref().unwrap_or("<anonymous>"))
+        write!(f, "<kaam {}>", self.def.display_name())
     }
+}
+
+/// A method looked up on a record: calling it binds `yeh` to `receiver`.
+#[derive(Debug)]
+pub struct BoundMethod {
+    pub receiver: Value,
+    pub func: Rc<Closure>,
 }
 
 #[derive(Clone, Debug)]
@@ -36,8 +41,10 @@ pub enum Value {
     Float(f64),
     Str(Rc<str>),
     List(Rc<RefCell<Vec<Value>>>),
+    /// Dictionaries and `dhacha` records (records have `type_name` set).
     Dict(Rc<RefCell<Dict>>),
     Func(Rc<Closure>),
+    Method(Rc<BoundMethod>),
     Builtin(usize),
 }
 
@@ -58,18 +65,33 @@ impl Value {
         }
     }
 
-    pub fn type_name(&self) -> &'static str {
+    /// The name `prakar()` returns.
+    pub fn prakar(&self) -> &'static str {
         match self {
-            Value::Null => "NoneType",
-            Value::Bool(_) => "bool",
-            Value::Int(_) | Value::Big(_) => "int",
-            Value::Float(_) => "float",
-            Value::Str(_) => "str",
+            Value::Null => "khali",
+            Value::Bool(_) => "boolean",
+            Value::Int(_) | Value::Big(_) | Value::Float(_) => "number",
+            Value::Str(_) => "string",
             Value::List(_) => "list",
-            Value::Dict(_) => "dict",
-            Value::Func(_) => "AdarshFunctionValue",
-            Value::Builtin(_) => "AdarshBuiltinFunction",
+            Value::Dict(d) => {
+                if d.borrow().type_name.is_some() {
+                    "dhacha"
+                } else {
+                    "dict"
+                }
+            }
+            Value::Func(_) | Value::Method(_) | Value::Builtin(_) => "kaam",
         }
+    }
+
+    /// Type description for error messages, e.g. `string`, `dhacha Vyakti`.
+    pub fn type_desc(&self) -> String {
+        if let Value::Dict(d) = self {
+            if let Some(t) = &d.borrow().type_name {
+                return format!("dhacha {t}");
+            }
+        }
+        self.prakar().to_string()
     }
 
     pub fn truthy(&self) -> bool {
@@ -81,19 +103,23 @@ impl Value {
             Value::Float(f) => *f != 0.0,
             Value::Str(s) => !s.is_empty(),
             Value::List(l) => !l.borrow().is_empty(),
-            Value::Dict(d) => !d.borrow().is_empty(),
-            Value::Func(_) | Value::Builtin(_) => true,
+            Value::Dict(d) => d.borrow().type_name.is_some() || !d.borrow().is_empty(),
+            Value::Func(_) | Value::Method(_) | Value::Builtin(_) => true,
         }
     }
 
     pub fn is_callable(&self) -> bool {
-        matches!(self, Value::Func(_) | Value::Builtin(_))
+        matches!(self, Value::Func(_) | Value::Method(_) | Value::Builtin(_))
     }
+}
+
+pub fn type_err(msg: impl Into<String>) -> AdarshError {
+    AdarshError::runtime(msg)
 }
 
 // ---------------------------------------------------------------- dict
 
-/// Hash key normalised the way Python hashes: `True == 1 == 1.0` share a slot.
+/// Hash key: `sahi_hai_be == 1 == 1.0`, so they share a slot.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum HKey {
     Null,
@@ -112,7 +138,7 @@ pub fn hash_key(v: &Value) -> R<HKey> {
         Value::Big(b) => HKey::Big((**b).clone()),
         Value::Float(f) => {
             if f.is_finite() && f.fract() == 0.0 {
-                if *f >= -9.2e18 && *f <= 9.2e18 {
+                if f.abs() <= 9.2e18 {
                     HKey::Int(*f as i64)
                 } else {
                     HKey::Big(BigInt::from_f64(*f).unwrap_or_default())
@@ -123,24 +149,28 @@ pub fn hash_key(v: &Value) -> R<HKey> {
         }
         Value::Str(s) => HKey::Str(s.clone()),
         Value::Func(c) => HKey::Ptr(Rc::as_ptr(c) as *const u8 as usize),
+        Value::Method(m) => HKey::Ptr(Rc::as_ptr(m) as *const u8 as usize),
         Value::Builtin(i) => HKey::Ptr(*i),
         Value::List(_) | Value::Dict(_) => {
-            return Err(AdarshError::type_error(format!("unhashable type: '{}'", v.type_name())))
+            return Err(type_err(format!("{} ko dict ki key nahi bana sakte.", v.type_desc())))
         }
     })
 }
 
-/// Insertion-ordered dictionary (Python 3.7+ semantics). Deletion is not part
-/// of the language, so a vector plus an index map is enough.
+/// Insertion-ordered dictionary. Records are dicts with a `type_name`.
 #[derive(Default, Debug)]
 pub struct Dict {
     entries: Vec<(Value, Value)>,
     index: HashMap<HKey, usize>,
+    pub type_name: Option<Rc<str>>,
 }
 
 impl Dict {
     pub fn new() -> Self {
         Self::default()
+    }
+    pub fn record(type_name: Rc<str>) -> Self {
+        Dict { type_name: Some(type_name), ..Default::default() }
     }
     pub fn len(&self) -> usize {
         self.entries.len()
@@ -169,7 +199,19 @@ impl Dict {
         Ok(())
     }
     pub fn insert_str(&mut self, k: &str, v: Value) {
-        self.insert(Value::str(k), v).expect("str keys are hashable")
+        self.insert(Value::str(k), v).expect("string keys are hashable")
+    }
+    /// Remove a key, returning its value.
+    pub fn remove(&mut self, k: &Value) -> R<Option<Value>> {
+        let hk = hash_key(k)?;
+        let Some(i) = self.index.remove(&hk) else { return Ok(None) };
+        let (_, v) = self.entries.remove(i);
+        for slot in self.index.values_mut() {
+            if *slot > i {
+                *slot -= 1;
+            }
+        }
+        Ok(Some(v))
     }
     pub fn entries(&self) -> &[(Value, Value)] {
         &self.entries
@@ -181,7 +223,7 @@ impl Dict {
 
 // ---------------------------------------------------------------- printing
 
-/// Python's `repr(float)`: shortest round-trip digits, scientific outside 1e-4..1e16.
+/// Shortest round-trip float text; scientific outside 1e-4..1e16 (`1e+16`, `1e-05`).
 pub fn float_repr(f: f64) -> String {
     if f.is_nan() {
         return "nan".into();
@@ -195,10 +237,9 @@ pub fn float_repr(f: f64) -> String {
     let sci = format!("{:e}", f);
     let (mant, exp) = sci.split_once('e').unwrap();
     let exp: i32 = exp.parse().unwrap();
-    let neg = mant.starts_with('-');
     let digits: String = mant.chars().filter(|c| c.is_ascii_digit()).collect();
     let mut out = String::new();
-    if neg {
+    if mant.starts_with('-') {
         out.push('-');
     }
     if (-4..16).contains(&exp) {
@@ -229,39 +270,29 @@ pub fn float_repr(f: f64) -> String {
     out
 }
 
-fn str_repr(s: &str, out: &mut String) {
-    let quote = if s.contains('\'') && !s.contains('"') { '"' } else { '\'' };
-    out.push(quote);
+/// String as an AdarshLang literal: `"say \"hi\"\n"`.
+fn quote(s: &str, out: &mut String) {
+    out.push('"');
     for c in s.chars() {
         match c {
+            '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
             '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
-            c if c == quote => {
-                out.push('\\');
-                out.push(c);
-            }
-            c if c.is_control() => {
-                let n = c as u32;
-                if n < 0x100 {
-                    let _ = write!(out, "\\x{:02x}", n);
-                } else if n < 0x10000 {
-                    let _ = write!(out, "\\u{:04x}", n);
-                } else {
-                    let _ = write!(out, "\\U{:08x}", n);
-                }
-            }
+            '\r' => out.push_str("\\r"),
+            '\0' => out.push_str("\\0"),
+            '{' => out.push_str("\\{"),
+            '}' => out.push_str("\\}"),
             c => out.push(c),
         }
     }
-    out.push(quote);
+    out.push('"');
 }
 
-fn write_value(v: &Value, repr: bool, out: &mut String, seen: &mut Vec<usize>, names: &dyn Fn(usize) -> &'static str) {
+fn write_value(v: &Value, nested: bool, out: &mut String, seen: &mut Vec<usize>) {
     match v {
-        Value::Null => out.push_str("None"),
-        Value::Bool(b) => out.push_str(if *b { "True" } else { "False" }),
+        Value::Null => out.push_str("khali"),
+        Value::Bool(b) => out.push_str(if *b { "sahi_hai_be" } else { "jhuth" }),
         Value::Int(i) => {
             let _ = write!(out, "{i}");
         }
@@ -270,8 +301,8 @@ fn write_value(v: &Value, repr: bool, out: &mut String, seen: &mut Vec<usize>, n
         }
         Value::Float(f) => out.push_str(&float_repr(*f)),
         Value::Str(s) => {
-            if repr {
-                str_repr(s, out)
+            if nested {
+                quote(s, out)
             } else {
                 out.push_str(s)
             }
@@ -288,7 +319,7 @@ fn write_value(v: &Value, repr: bool, out: &mut String, seen: &mut Vec<usize>, n
                 if i > 0 {
                     out.push_str(", ");
                 }
-                write_value(item, true, out, seen, names);
+                write_value(item, true, out, seen);
             }
             out.push(']');
             seen.pop();
@@ -300,52 +331,67 @@ fn write_value(v: &Value, repr: bool, out: &mut String, seen: &mut Vec<usize>, n
                 return;
             }
             seen.push(id);
-            out.push('{');
-            for (i, (k, val)) in d.borrow().entries().iter().enumerate() {
-                if i > 0 {
-                    out.push_str(", ");
+            let d = d.borrow();
+            match &d.type_name {
+                Some(t) => {
+                    out.push_str(t);
+                    if d.is_empty() {
+                        out.push_str(" {}");
+                    } else {
+                        out.push_str(" { ");
+                        for (i, (k, val)) in d.entries().iter().enumerate() {
+                            if i > 0 {
+                                out.push_str(", ");
+                            }
+                            write_value(k, false, out, seen);
+                            out.push_str(": ");
+                            write_value(val, true, out, seen);
+                        }
+                        out.push_str(" }");
+                    }
                 }
-                write_value(k, true, out, seen, names);
-                out.push_str(": ");
-                write_value(val, true, out, seen, names);
+                None => {
+                    out.push('{');
+                    for (i, (k, val)) in d.entries().iter().enumerate() {
+                        if i > 0 {
+                            out.push_str(", ");
+                        }
+                        write_value(k, true, out, seen);
+                        out.push_str(": ");
+                        write_value(val, true, out, seen);
+                    }
+                    out.push('}');
+                }
             }
-            out.push('}');
             seen.pop();
         }
         Value::Func(c) => {
-            let _ = write!(out, "<kaam {}>", c.def.name.as_deref().unwrap_or("<anonymous>"));
+            let _ = write!(out, "<kaam {}>", c.def.display_name());
+        }
+        Value::Method(m) => {
+            let _ = write!(out, "<kaam {}>", m.func.def.display_name());
         }
         Value::Builtin(i) => {
-            let _ = write!(out, "<builtin kaam {}>", names(*i));
+            let _ = write!(out, "<kaam {}>", crate::builtins::builtin_name(*i));
         }
     }
 }
 
-/// Python `str(value)`.
-pub fn py_str(v: &Value) -> String {
+/// How `dikhao` and string interpolation show a value (strings unquoted).
+pub fn display(v: &Value) -> String {
     if let Value::Str(s) = v {
         return s.to_string();
     }
     let mut out = String::new();
-    write_value(v, false, &mut out, &mut Vec::new(), &crate::builtins::builtin_name);
+    write_value(v, false, &mut out, &mut Vec::new());
     out
 }
 
-/// Python `repr(value)`.
-pub fn py_repr(v: &Value) -> String {
+/// Source-like form, used by the REPL and inside containers (strings quoted).
+pub fn repr(v: &Value) -> String {
     let mut out = String::new();
-    write_value(v, true, &mut out, &mut Vec::new(), &crate::builtins::builtin_name);
+    write_value(v, true, &mut out, &mut Vec::new());
     out
-}
-
-/// What `dikhao` prints: `khali` / `sahi_hai_be` / `jhuth` at top level, else `str()`.
-pub fn display(v: &Value) -> String {
-    match v {
-        Value::Null => "khali".into(),
-        Value::Bool(true) => "sahi_hai_be".into(),
-        Value::Bool(false) => "jhuth".into(),
-        other => py_str(other),
-    }
 }
 
 // ---------------------------------------------------------------- numbers
@@ -375,10 +421,14 @@ fn big(n: &Num) -> BigInt {
     }
 }
 
+fn too_big() -> AdarshError {
+    AdarshError::runtime("Number bahut bada hai.")
+}
+
 pub fn big_to_f64(b: &BigInt) -> R<f64> {
     match b.to_f64() {
         Some(f) if f.is_finite() => Ok(f),
-        _ => Err(AdarshError::overflow("int too large to convert to float")),
+        _ => Err(too_big()),
     }
 }
 
@@ -394,14 +444,18 @@ fn is_float(n: &Num) -> bool {
     matches!(n, Num::F(_))
 }
 
-fn unsupported(op: &str, a: &Value, b: &Value) -> AdarshError {
-    AdarshError::type_error(format!(
-        "unsupported operand type(s) for {op}: '{}' and '{}'",
-        a.type_name(),
-        b.type_name()
-    ))
+fn unsupported(op: BinOp, a: &Value, b: &Value) -> AdarshError {
+    let (ta, tb) = (a.type_desc(), b.type_desc());
+    let mut msg = format!("'{}' {ta} aur {tb} ke beech nahi chalta.", op.symbol());
+    if op == BinOp::Add && (matches!(a, Value::Str(_)) || matches!(b, Value::Str(_))) {
+        msg = format!(
+            "String mein sirf string jod sakte ho, yahan {ta} + {tb} hai. Interpolation \"..{{x}}..\" ya shabdme() use karo."
+        );
+    }
+    type_err(msg)
 }
 
+/// Correctly rounded `a / b` for integers.
 fn int_true_div(a: &Num, b: &Num) -> R<f64> {
     const EXACT: i64 = 1 << 53;
     if let (Num::I(x), Num::I(y)) = (a, b) {
@@ -409,14 +463,12 @@ fn int_true_div(a: &Num, b: &Num) -> R<f64> {
             return Ok(*x as f64 / *y as f64);
         }
     }
-    // Correctly rounded a / b for arbitrary ints (what CPython does).
     let (x, y) = (big(a), big(b));
     let negative = x.is_negative() != y.is_negative();
     let (x, y) = (x.abs(), y.abs());
     if x.is_zero() {
         return Ok(if negative { -0.0 } else { 0.0 });
     }
-    // scale so the integer quotient has at least 64 significant bits
     let k: i64 = 64 + y.bits() as i64 - x.bits() as i64;
     let (q, r) = if k >= 0 { (&x << k as usize).div_rem(&y) } else { x.div_rem(&(&y << (-k) as usize)) };
     let mut sticky = !r.is_zero();
@@ -427,12 +479,9 @@ fn int_true_div(a: &Num, b: &Num) -> R<f64> {
         sticky |= !(&q & &mask).is_zero();
         q >>= shift as usize;
     }
-    // 55-bit mantissa: 53 bits + round bit + sticky bit, rounded by the u64 -> f64 conversion
     let m = q.to_u64().unwrap() | sticky as u64;
-    let exp = shift.max(0) - k;
     let mut f = m as f64;
-    // apply 2^exp in steps to avoid intermediate overflow/underflow
-    let mut e = exp;
+    let mut e = shift.max(0) - k;
     while e > 0 {
         let step = e.min(1000);
         f *= 2f64.powi(step as i32);
@@ -444,12 +493,12 @@ fn int_true_div(a: &Num, b: &Num) -> R<f64> {
         e += step;
     }
     if f.is_infinite() {
-        return Err(AdarshError::overflow("integer division result too large for a float"));
+        return Err(too_big());
     }
     Ok(if negative { -f } else { f })
 }
 
-fn py_fmod(a: f64, b: f64) -> f64 {
+fn floor_mod_f(a: f64, b: f64) -> f64 {
     let mut r = a % b;
     if r != 0.0 {
         if (r < 0.0) != (b < 0.0) {
@@ -469,6 +518,8 @@ fn repeat_count(n: &Value) -> Option<i64> {
     }
 }
 
+const MAX_REPEAT: usize = 100_000_000;
+
 /// Binary arithmetic for `+ - * / % **` (also used by compound assignment).
 pub fn arith(op: BinOp, a: &Value, b: &Value) -> R<Value> {
     match op {
@@ -485,21 +536,9 @@ pub fn arith(op: BinOp, a: &Value, b: &Value) -> R<Value> {
                     v.extend(y.borrow().iter().cloned());
                     return Ok(Value::list(v));
                 }
-                (Value::Str(_), _) => {
-                    return Err(AdarshError::type_error(format!(
-                        "can only concatenate str (not \"{}\") to str",
-                        b.type_name()
-                    )))
-                }
-                (Value::List(_), _) => {
-                    return Err(AdarshError::type_error(format!(
-                        "can only concatenate list (not \"{}\") to list",
-                        b.type_name()
-                    )))
-                }
                 _ => {}
             }
-            let (x, y) = nums(a, b).ok_or_else(|| unsupported("+", a, b))?;
+            let (x, y) = nums(a, b).ok_or_else(|| unsupported(op, a, b))?;
             if is_float(&x) || is_float(&y) {
                 return Ok(Value::Float(to_f64(&x)? + to_f64(&y)?));
             }
@@ -511,7 +550,7 @@ pub fn arith(op: BinOp, a: &Value, b: &Value) -> R<Value> {
             Ok(Value::from_big(big(&x) + big(&y)))
         }
         BinOp::Sub => {
-            let (x, y) = nums(a, b).ok_or_else(|| unsupported("-", a, b))?;
+            let (x, y) = nums(a, b).ok_or_else(|| unsupported(op, a, b))?;
             if is_float(&x) || is_float(&y) {
                 return Ok(Value::Float(to_f64(&x)? - to_f64(&y)?));
             }
@@ -525,12 +564,18 @@ pub fn arith(op: BinOp, a: &Value, b: &Value) -> R<Value> {
         BinOp::Mul => {
             match (a, b) {
                 (Value::Str(s), n) | (n, Value::Str(s)) if repeat_count(n).is_some() => {
-                    let k = repeat_count(n).unwrap();
-                    return Ok(Value::Str(s.repeat(k.max(0) as usize).into()));
+                    let k = repeat_count(n).unwrap().max(0) as usize;
+                    if s.len().saturating_mul(k) > MAX_REPEAT {
+                        return Err(too_big());
+                    }
+                    return Ok(Value::Str(s.repeat(k).into()));
                 }
                 (Value::List(l), n) | (n, Value::List(l)) if repeat_count(n).is_some() => {
                     let k = repeat_count(n).unwrap().max(0) as usize;
                     let src = l.borrow();
+                    if src.len().saturating_mul(k) > MAX_REPEAT {
+                        return Err(too_big());
+                    }
                     let mut v = Vec::with_capacity(src.len() * k);
                     for _ in 0..k {
                         v.extend(src.iter().cloned());
@@ -540,14 +585,16 @@ pub fn arith(op: BinOp, a: &Value, b: &Value) -> R<Value> {
                 _ => {}
             }
             let (x, y) = nums(a, b).ok_or_else(|| {
-                if matches!(a, Value::Str(_) | Value::List(_)) || matches!(b, Value::Str(_) | Value::List(_)) {
-                    let other = if matches!(a, Value::Str(_) | Value::List(_)) { b } else { a };
-                    AdarshError::type_error(format!(
-                        "can't multiply sequence by non-int of type '{}'",
-                        other.type_name()
+                let seq = |v: &Value| matches!(v, Value::Str(_) | Value::List(_));
+                if seq(a) || seq(b) {
+                    let (s, other) = if seq(a) { (a, b) } else { (b, a) };
+                    type_err(format!(
+                        "{} ko sirf poore number se guna kar sakte ho, {} se nahi.",
+                        s.type_desc(),
+                        other.type_desc()
                     ))
                 } else {
-                    unsupported("*", a, b)
+                    unsupported(op, a, b)
                 }
             })?;
             if is_float(&x) || is_float(&y) {
@@ -561,75 +608,92 @@ pub fn arith(op: BinOp, a: &Value, b: &Value) -> R<Value> {
             Ok(Value::from_big(big(&x) * big(&y)))
         }
         BinOp::Div => {
-            let (x, y) = nums(a, b).ok_or_else(|| unsupported("/", a, b))?;
+            let (x, y) = nums(a, b).ok_or_else(|| unsupported(op, a, b))?;
+            let zero = || AdarshError::runtime("Zero se divide nahi kar sakte.");
             if is_float(&x) || is_float(&y) {
                 let d = to_f64(&y)?;
                 if d == 0.0 {
-                    return Err(AdarshError::zero_div("float division by zero"));
+                    return Err(zero());
                 }
                 return Ok(Value::Float(to_f64(&x)? / d));
             }
             if big(&y).is_zero() {
-                return Err(AdarshError::zero_div("division by zero"));
+                return Err(zero());
             }
             Ok(Value::Float(int_true_div(&x, &y)?))
         }
         BinOp::Mod => {
-            if let Value::Str(_) = a {
-                return Err(AdarshError::type_error("not all arguments converted during string formatting"));
-            }
-            let (x, y) = nums(a, b).ok_or_else(|| unsupported("%", a, b))?;
+            let (x, y) = nums(a, b).ok_or_else(|| unsupported(op, a, b))?;
+            let zero = || AdarshError::runtime("Zero se modulo (%) nahi kar sakte.");
             if is_float(&x) || is_float(&y) {
                 let d = to_f64(&y)?;
                 if d == 0.0 {
-                    return Err(AdarshError::zero_div("float modulo by zero"));
+                    return Err(zero());
                 }
-                return Ok(Value::Float(py_fmod(to_f64(&x)?, d)));
+                return Ok(Value::Float(floor_mod_f(to_f64(&x)?, d)));
             }
             if let (Num::I(p), Num::I(q)) = (&x, &y) {
                 if *q == 0 {
-                    return Err(AdarshError::zero_div("integer modulo by zero"));
+                    return Err(zero());
                 }
                 if let Some(r) = p.checked_rem_euclid(*q) {
-                    // rem_euclid is always >= 0; Python's result takes the divisor's sign.
-                    let r = if r != 0 && *q < 0 { r + q } else { r };
-                    return Ok(Value::Int(r));
+                    // the result takes the divisor's sign (floor modulo)
+                    return Ok(Value::Int(if r != 0 && *q < 0 { r + q } else { r }));
                 }
             }
-            let (bx, by) = (big(&x), big(&y));
+            let by = big(&y);
             if by.is_zero() {
-                return Err(AdarshError::zero_div("integer modulo by zero"));
+                return Err(zero());
             }
-            Ok(Value::from_big(bx.mod_floor(&by)))
+            Ok(Value::from_big(big(&x).mod_floor(&by)))
         }
         BinOp::Pow => {
-            let (x, y) = nums(a, b).ok_or_else(|| unsupported("** or pow()", a, b))?;
+            let (x, y) = nums(a, b).ok_or_else(|| unsupported(op, a, b))?;
             if !is_float(&x) && !is_float(&y) {
                 let e = big(&y);
                 if !e.is_negative() {
-                    let base = big(&x);
                     if let (Num::I(p), Some(q)) = (&x, e.to_u32()) {
                         if let Some(r) = p.checked_pow(q) {
                             return Ok(Value::Int(r));
                         }
                     }
+                    let base = big(&x);
+                    if base.abs() <= BigInt::from(1) {
+                        // 0, 1 and -1 stay small for any exponent
+                        let b = base.to_i64().unwrap();
+                        let r = if e.is_zero() || b == 1 {
+                            1
+                        } else if b == 0 {
+                            0
+                        } else if e.is_even() {
+                            1
+                        } else {
+                            -1
+                        };
+                        return Ok(Value::Int(r));
+                    }
+                    // cap results at roughly 64 million bits
                     let exp = e
                         .to_u32()
-                        .ok_or_else(|| AdarshError::Host(crate::error::HostKind::MemoryError, String::new()))?;
+                        .filter(|e| (base.bits()).saturating_mul(*e as u64) < 64_000_000)
+                        .ok_or_else(too_big)?;
                     return Ok(Value::from_big(num_traits::pow(base, exp as usize)));
                 }
             }
             let (fx, fy) = (to_f64(&x)?, to_f64(&y)?);
             if fx == 0.0 && fy < 0.0 {
-                return Err(AdarshError::zero_div("0.0 cannot be raised to a negative power"));
+                return Err(AdarshError::runtime("0 ki negative power nahi hoti (zero se divide jaisa)."));
+            }
+            if fx < 0.0 && fy.fract() != 0.0 {
+                return Err(AdarshError::runtime("Negative number ki fractional power real number nahi hoti."));
             }
             let r = fx.powf(fy);
             if r.is_infinite() && fx.is_finite() && fy.is_finite() {
-                return Err(AdarshError::overflow("(34, 'Numerical result out of range')"));
+                return Err(too_big());
             }
             Ok(Value::Float(r))
         }
-        _ => Err(AdarshError::runtime(format!("Unknown operator '{}' in AdarshLang.", op.symbol()))),
+        _ => unreachable!("not an arithmetic operator"),
     }
 }
 
@@ -642,26 +706,25 @@ pub fn negate(v: &Value) -> R<Value> {
         Some(Num::I(i)) => Ok(i.checked_neg().map(Value::Int).unwrap_or_else(|| Value::from_big(-BigInt::from(i)))),
         Some(Num::B(b)) => Ok(Value::from_big(-b)),
         Some(Num::F(f)) => Ok(Value::Float(-f)),
-        None => Err(AdarshError::type_error(format!("bad operand type for unary -: '{}'", v.type_name()))),
+        None => Err(type_err(format!("'-' {} par nahi chalta, sirf number par.", v.type_desc()))),
     }
 }
 
 pub fn abs_value(v: &Value) -> R<Value> {
     match as_num(v) {
-        Some(Num::I(i)) => Ok(i.checked_abs().map(Value::Int).unwrap_or_else(|| Value::from_big(BigInt::from(i).abs()))),
+        Some(Num::I(i)) => {
+            Ok(i.checked_abs().map(Value::Int).unwrap_or_else(|| Value::from_big(BigInt::from(i).abs())))
+        }
         Some(Num::B(b)) => Ok(Value::from_big(b.abs())),
         Some(Num::F(f)) => Ok(Value::Float(f.abs())),
-        None => Err(AdarshError::type_error(format!("bad operand type for abs(): '{}'", v.type_name()))),
+        None => Err(type_err(format!("abs() ko number chahiye, {} mila.", v.type_desc()))),
     }
 }
 
-/// Convert a float to an int value, with Python's errors for nan/inf.
+/// Convert a float to an int value (nan/inf are errors).
 pub fn float_to_int(f: f64) -> R<Value> {
-    if f.is_nan() {
-        return Err(AdarshError::value_error("cannot convert float NaN to integer"));
-    }
-    if f.is_infinite() {
-        return Err(AdarshError::overflow("cannot convert float infinity to integer"));
+    if !f.is_finite() {
+        return Err(AdarshError::runtime(format!("{} ko poore number mein nahi badal sakte.", float_repr(f))));
     }
     if f.abs() < 9.0e18 {
         Ok(Value::Int(f as i64))
@@ -683,13 +746,12 @@ pub fn num_cmp(a: &Num, b: &Num) -> Option<Ordering> {
             if x.is_infinite() {
                 return Some(if *x > 0.0 { Ordering::Greater } else { Ordering::Less });
             }
-            // compare exactly via big ints when x is integral, else via f64
             if x.fract() == 0.0 {
                 BigInt::from_f64(*x).map(|bx| bx.cmp(&big(other)))
             } else {
                 let o = match other {
                     Num::I(i) => *i as f64,
-                    Num::B(b) => b.to_f64().unwrap_or(f64::INFINITY * if b.is_negative() { -1.0 } else { 1.0 }),
+                    Num::B(b) => b.to_f64().unwrap_or(if b.is_negative() { f64::NEG_INFINITY } else { f64::INFINITY }),
                     Num::F(_) => unreachable!(),
                 };
                 x.partial_cmp(&o)
@@ -700,8 +762,8 @@ pub fn num_cmp(a: &Num, b: &Num) -> Option<Ordering> {
     }
 }
 
-/// Python `==`.
-pub fn py_eq(a: &Value, b: &Value) -> bool {
+/// Structural equality (`==`).
+pub fn values_eq(a: &Value, b: &Value) -> bool {
     if let (Some(x), Some(y)) = (as_num(a), as_num(b)) {
         return num_cmp(&x, &y) == Some(Ordering::Equal);
     }
@@ -713,36 +775,25 @@ pub fn py_eq(a: &Value, b: &Value) -> bool {
                 return true;
             }
             let (x, y) = (x.borrow(), y.borrow());
-            x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| identical(p, q) || py_eq(p, q))
+            x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| values_eq(p, q))
         }
         (Value::Dict(x), Value::Dict(y)) => {
             if Rc::ptr_eq(x, y) {
                 return true;
             }
             let (x, y) = (x.borrow(), y.borrow());
-            x.len() == y.len()
-                && x.entries().iter().all(|(k, v)| match y.get(k) {
-                    Ok(Some(w)) => identical(v, &w) || py_eq(v, &w),
-                    _ => false,
-                })
+            x.type_name == y.type_name
+                && x.len() == y.len()
+                && x.entries().iter().all(|(k, v)| matches!(y.get(k), Ok(Some(w)) if values_eq(v, &w)))
         }
         (Value::Func(x), Value::Func(y)) => Rc::ptr_eq(x, y),
+        (Value::Method(x), Value::Method(y)) => Rc::ptr_eq(&x.func, &y.func) && values_eq(&x.receiver, &y.receiver),
         (Value::Builtin(x), Value::Builtin(y)) => x == y,
         _ => false,
     }
 }
 
-/// Python's `is` for container elements (identity shortcut used by list/dict `==`).
-fn identical(a: &Value, b: &Value) -> bool {
-    match (a, b) {
-        (Value::List(x), Value::List(y)) => Rc::ptr_eq(x, y),
-        (Value::Dict(x), Value::Dict(y)) => Rc::ptr_eq(x, y),
-        (Value::Func(x), Value::Func(y)) => Rc::ptr_eq(x, y),
-        _ => false,
-    }
-}
-
-/// Python rich comparison for `< > <= >=`.
+/// `< > <= >=` on numbers, strings, and lists (lexicographic).
 pub fn compare(op: BinOp, a: &Value, b: &Value) -> R<bool> {
     let test = |o: Option<Ordering>| -> bool {
         match o {
@@ -764,17 +815,17 @@ pub fn compare(op: BinOp, a: &Value, b: &Value) -> R<bool> {
         (Value::List(x), Value::List(y)) => {
             let (xs, ys) = (x.borrow().clone(), y.borrow().clone());
             for (p, q) in xs.iter().zip(ys.iter()) {
-                if !(identical(p, q) || py_eq(p, q)) {
+                if !values_eq(p, q) {
                     return compare(op, p, q);
                 }
             }
             Ok(test(Some(xs.len().cmp(&ys.len()))))
         }
-        _ => Err(AdarshError::type_error(format!(
-            "'{}' not supported between instances of '{}' and '{}'",
+        _ => Err(type_err(format!(
+            "'{}' se {} aur {} ko compare nahi kar sakte.",
             op.symbol(),
-            a.type_name(),
-            b.type_name()
+            a.type_desc(),
+            b.type_desc()
         ))),
     }
 }
@@ -797,8 +848,8 @@ fn strip_underscores(s: &str) -> Option<String> {
     Some(s.replace('_', ""))
 }
 
-/// Python `int(str)` (base 10).
-pub fn parse_py_int(s: &str) -> Option<Value> {
+/// Parse an integer from text (`" 42 "`, `-7`, `1_000`).
+pub fn parse_int(s: &str) -> Option<Value> {
     let t = s.trim();
     let body = t.strip_prefix(['+', '-']).unwrap_or(t);
     if body.is_empty() || !body.chars().all(|c| c.is_ascii_digit() || c == '_') {
@@ -811,10 +862,9 @@ pub fn parse_py_int(s: &str) -> Option<Value> {
     }
 }
 
-/// Python `float(str)`.
-pub fn parse_py_float(s: &str) -> Option<f64> {
-    let t = s.trim();
-    let clean = strip_underscores(t)?;
+/// Parse a float from text (`3.5`, `.5`, `1e5`, `inf`).
+pub fn parse_float(s: &str) -> Option<f64> {
+    let clean = strip_underscores(s.trim())?;
     let lower = clean.to_ascii_lowercase();
     let body = lower.strip_prefix(['+', '-']).unwrap_or(&lower);
     if !(body == "inf" || body == "infinity" || body == "nan")
@@ -825,18 +875,15 @@ pub fn parse_py_float(s: &str) -> Option<f64> {
     clean.parse::<f64>().ok()
 }
 
-/// Python `int(value)`.
-pub fn py_int(v: &Value) -> R<Value> {
+/// Convert to a whole number (`int()`): truncates floats, parses strings.
+pub fn to_int(v: &Value, what: &str) -> R<Value> {
     match v {
         Value::Bool(b) => Ok(Value::Int(*b as i64)),
         Value::Int(_) | Value::Big(_) => Ok(v.clone()),
         Value::Float(f) => float_to_int(*f),
-        Value::Str(s) => parse_py_int(s).ok_or_else(|| {
-            AdarshError::value_error(format!("invalid literal for int() with base 10: {}", py_repr(v)))
-        }),
-        _ => Err(AdarshError::type_error(format!(
-            "int() argument must be a string, a bytes-like object or a real number, not '{}'",
-            v.type_name()
-        ))),
+        Value::Str(s) => {
+            parse_int(s).ok_or_else(|| type_err(format!("{what} ko poora number chahiye, {} mila.", repr(v))))
+        }
+        _ => Err(type_err(format!("{what} ko poora number chahiye, {} mila.", v.type_desc()))),
     }
 }

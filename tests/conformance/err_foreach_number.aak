@@ -1,0 +1,2 @@
+badlo total = 0;
+ke_liye (badlo i in 5) { total += i; }

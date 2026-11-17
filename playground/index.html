@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AdarshLang Playground</title>
+<meta name="description" content="AdarshLang: a Hinglish programming language. Write badlo, dikhao, agar and run it instantly in your browser.">
+<meta name="theme-color" content="#f6f4ef">
+<script>
+  // set the theme before first paint (no flash)
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem('aak-theme'); } catch (e) {}
+    if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preload" href="adarshlang.wasm" as="fetch" type="application/wasm" crossorigin>
+<style>
+  :root {
+    --bg: #f6f4ef; --surface: #ffffff; --surface-2: #efece5;
+    --ink: #14161a; --ink-2: #4a4f57; --ink-3: #656a73;
+    --rule: #dcd8cf; --rule-strong: #bfb9ad;
+    --accent: #0f6b4f; --accent-ink: #ffffff; --warn: #9a5b00; --err: #b3261e;
+    --accent-soft: color-mix(in srgb, var(--accent) 10%, transparent);
+    --font-display: "Instrument Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+    --fs-display: clamp(2.6rem, 3.4vw + 1rem, 4.75rem);
+    --fs-h2: clamp(2rem, 2.4vw + 1rem, 3.25rem);
+    --fs-body: 1.0625rem; --fs-small: .9375rem; --fs-label: .75rem;
+    --gutter: clamp(16px, 3vw, 40px); --section-pad: clamp(56px, 7vw, 112px);
+    --radius: 2px; --ease: cubic-bezier(.2, .7, .2, 1);
+    --footer-bg: #0e1013;
+  }
+  html[data-theme="dark"] {
+    --bg: #0e1013; --surface: #15181d; --surface-2: #1b1f25;
+    --ink: #e9e6df; --ink-2: #a9adb4; --ink-3: #8a8f97;
+    --rule: #2a2e35; --rule-strong: #3a3f47;
+    --accent: #3ddc97; --accent-ink: #0e1013; --warn: #f2b33d; --err: #ff6b6b;
+    --footer-bg: #090a0c;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink-2);
+    font-family: var(--font-body); font-size: var(--fs-body); line-height: 1.65;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  code, pre, textarea, kbd { font-family: var(--font-mono); font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 var(--gutter); }
+  .label { font-family: var(--font-mono); font-size: var(--fs-label); font-weight: 500;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+  .num { font-family: var(--font-mono); font-size: var(--fs-label); color: var(--ink-3); margin-right: .5em; }
+
+  /* ---------- header */
+  header.site {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+    backdrop-filter: saturate(1.2) blur(10px); -webkit-backdrop-filter: saturate(1.2) blur(10px);
+    border-bottom: 1px solid var(--rule);
+  }
+  header.site .wrap { display: flex; align-items: center; gap: 24px; height: 64px; }
+  .brand { font-family: var(--font-display); font-size: 1.6rem; color: var(--ink); text-decoration: none;
+    letter-spacing: -.01em; white-space: nowrap; }
+  .brand::after { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent); margin-left: 6px; vertical-align: middle; }
+  nav.links { display: flex; gap: 4px; margin-left: auto; }
+  nav.links a { font-family: var(--font-mono); font-size: .78rem; font-weight: 500; letter-spacing: .03em;
+    text-transform: uppercase; color: var(--ink-2); text-decoration: none; padding: 12px 8px; border-radius: var(--radius); }
+  nav.links a:hover { color: var(--ink); }
+  .icon-btn { width: 44px; height: 44px; display: grid; place-items: center; background: transparent;
+    border: 1px solid var(--rule); border-radius: var(--radius); color: var(--ink); cursor: pointer; flex: none; }
+  .icon-btn:hover { border-color: var(--rule-strong); }
+  .icon-btn svg { width: 20px; height: 20px; }
+
+  /* ---------- hero */
+  .hero { padding: var(--section-pad) 0 40px; }
+  .hero .wrap { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 56px; align-items: center; }
+  .sample { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); }
+  .sample pre { margin: 0; padding: 18px 20px; font-size: 14px; line-height: 1.7; color: var(--ink); overflow-x: auto; }
+  .sample .k { color: var(--accent); }
+  .sample .s { color: var(--warn); }
+  .sample .c { color: var(--ink-3); }
+  .sample .out { border-top: 1px solid var(--rule); padding: 12px 20px; font-family: var(--font-mono); font-size: 14px; color: var(--ink); }
+  .sample .out::before { content: "→ "; color: var(--accent); }
+  .sample-note { margin-top: 10px; }
+  @media (max-width: 960px) { .hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 40px; } }
+  .hero h1 { font-family: var(--font-display); font-weight: 400; font-size: var(--fs-display);
+    line-height: 1.04; letter-spacing: -.01em; color: var(--ink); margin: 14px 0 18px; max-width: 14ch; }
+  .hero h1 em { color: var(--accent); font-style: italic; text-decoration: underline;
+    text-decoration-thickness: 3px; text-underline-offset: 6px; }
+  .hero .lede { font-size: 1.25rem; line-height: 1.5; max-width: 34ch; margin: 0 0 28px; }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 560px;
+    border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 14px 0; margin-bottom: 28px; }
+  .stats b { display: block; font-family: var(--font-display); font-weight: 400; font-size: 2.4rem; line-height: 1.1; color: var(--ink); }
+  .stats span { font-family: var(--font-mono); font-size: .8rem; color: var(--ink-3); line-height: 1.5; display: block; }
+  .cta { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; }
+
+  .btn { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-body); font-weight: 600;
+    font-size: .9375rem; padding: 12px 22px; border-radius: var(--radius); cursor: pointer;
+    border: 1px solid transparent; text-decoration: none; transition: background var(--t, .15s) var(--ease), border-color .15s; }
+  .btn-primary { background: var(--ink); color: var(--bg); }
+  .btn-primary:hover { background: color-mix(in srgb, var(--ink) 86%, var(--accent)); }
+  .btn-primary:disabled { opacity: .6; cursor: progress; }
+  .btn-ghost { background: transparent; color: var(--ink); border-color: var(--rule); font-weight: 500; padding: 10px 14px; }
+  .btn-ghost:hover { border-color: var(--rule-strong); }
+  .link-arrow { color: var(--accent); font-weight: 500; text-decoration: underline; }
+
+  /* ---------- sections */
+  section.block { padding: 40px 0 var(--section-pad); }
+  .section-head { display: flex; align-items: baseline; gap: 16px; border-top: 1px solid var(--ink);
+    padding-top: 14px; margin-bottom: 28px; flex-wrap: wrap; }
+  .section-head h2 { font-family: var(--font-display); font-weight: 400; font-size: var(--fs-h2);
+    line-height: 1.05; letter-spacing: -.01em; color: var(--ink); margin: 0; }
+  .section-head p { margin: 0; max-width: 46ch; }
+
+  /* ---------- playground */
+  .panel { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+  .editor { display: grid; grid-template-columns: auto 1fr; }
+  .gutter { padding: 16px 10px 16px 14px; text-align: right; color: var(--ink-3); user-select: none;
+    font-family: var(--font-mono); font-size: 14px; line-height: 1.6; white-space: pre; border-right: 1px solid var(--rule);
+    background: var(--surface-2); overflow: hidden; }
+  #source_code { width: 100%; min-height: 360px; resize: vertical; border: 0; outline: none; margin: 0;
+    padding: 16px; background: transparent; color: var(--ink); font-size: 14px; line-height: 1.6;
+    tab-size: 4; white-space: pre; overflow: auto; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 14px; border-top: 1px solid var(--rule); }
+  .hint { margin-left: auto; font-family: var(--font-mono); font-size: .75rem; color: var(--ink-3); }
+  kbd { font-family: var(--font-mono); font-size: .72rem; border: 1px solid var(--rule); border-radius: var(--radius);
+    padding: 1px 6px; background: var(--surface-2); color: var(--ink-2); }
+  details.stdin { border-top: 1px solid var(--rule); }
+  details.stdin summary { cursor: pointer; padding: 10px 14px; font-family: var(--font-mono); font-size: .78rem; color: var(--ink-2); }
+  details.stdin textarea { display: block; width: calc(100% - 28px); margin: 0 14px 14px; min-height: 60px; padding: 10px 12px;
+    border: 1px solid var(--rule); border-radius: var(--radius); background: var(--bg); color: var(--ink); font-size: 14px; resize: vertical; }
+  #output-card { margin-top: 16px; display: none; }
+  #output-pre { margin: 0; padding: 16px; min-height: 64px; max-height: 420px; overflow: auto; color: var(--ink);
+    font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+  #output-pre.error-output { color: var(--err); }
+  .status { display: inline-flex; align-items: center; gap: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .dot.err { background: var(--err); }
+  .spin { display: inline-block; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- examples */
+  .examples { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 24px; margin: 0; padding: 0; list-style: none; }
+  .examples li { border-top: 1px solid var(--rule); }
+  .examples button { width: 100%; text-align: left; background: none; border: 0; padding: 12px 0; cursor: pointer;
+    font: inherit; font-size: var(--fs-small); color: var(--ink-2); }
+  .examples button:hover, .examples button[aria-pressed="true"] { color: var(--accent); }
+  .examples .new { font-family: var(--font-mono); font-size: .68rem; color: var(--accent); border: 1px solid currentColor;
+    border-radius: var(--radius); padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
+
+  /* ---------- docs */
+  .docs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 32px; }
+  .doc h3 { font-family: var(--font-display); font-weight: 400; font-size: 1.6rem; color: var(--ink); margin: 0 0 8px;
+    border-top: 1px solid var(--rule); padding-top: 12px; }
+  .doc ul { margin: 0; padding: 0; list-style: none; }
+  .doc li { padding: 5px 0; font-size: var(--fs-small); }
+  .doc code { font-size: .82rem; color: var(--ink); background: var(--surface-2); padding: 1px 5px; border-radius: var(--radius); }
+  .install { margin-top: 40px; }
+  .install pre { margin: 10px 0 0; padding: 14px 16px; background: var(--surface); border: 1px solid var(--rule);
+    border-radius: var(--radius); color: var(--ink); font-size: 14px; overflow-x: auto; }
+
+  /* ---------- footer (dark, like the site) */
+  footer.site { background: var(--footer-bg); color: #a9adb4; padding: 48px 0 40px; font-size: var(--fs-small); }
+  footer.site .brand { color: #e9e6df; }
+  footer.site .brand::after { background: #3ddc97; }
+  footer.site a { color: #3ddc97; }
+  footer.site .row { display: flex; flex-wrap: wrap; gap: 16px 40px; justify-content: space-between; align-items: baseline; }
+
+  @media (max-width: 860px) {
+    nav.links { display: none; }
+    header.site .icon-btn { margin-left: auto; }
+    .examples, .docs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 560px) {
+    .examples, .docs { grid-template-columns: minmax(0, 1fr); }
+    .hint { display: none; }
+    .stats b { font-size: 1.9rem; }
+    #source_code { min-height: 280px; font-size: 13px; }
+    .gutter { font-size: 13px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="#top">AdarshLang</a>
+    <nav class="links" aria-label="Sections">
+      <a href="#playground"><span class="num">01</span>Playground</a>
+      <a href="#examples"><span class="num">02</span>Examples</a>
+      <a href="#docs"><span class="num">03</span>Docs</a>
+      <a href="https://github.com/anonymousAAK/adarshLang"><span class="num">04</span>GitHub</a>
+    </nav>
+    <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <div>
+      <div class="label">AdarshLang · Hinglish programming language · v0.2.0</div>
+      <h1>Code in your own <em>language</em>.</h1>
+      <p class="lede">Write <code>badlo</code>, <code>dikhao</code> and <code>agar</code>, and run it instantly. The interpreter is Rust compiled to WebAssembly, running right in your browser.</p>
+      <div class="stats">
+        <div><b>0</b><span>servers needed</span></div>
+        <div><b>35</b><span>builtin functions</span></div>
+        <div><b>Hinglish</b><span>errors with line + column</span></div>
+      </div>
+      <div class="cta">
+        <a class="btn btn-primary" href="#playground">Open the playground <span aria-hidden="true">→</span></a>
+        <a class="link-arrow" href="#examples">Browse examples →</a>
+        <a class="link-arrow" href="#docs">Read the docs →</a>
+      </div>
+      </div>
+      <figure class="sample-wrap" style="margin:0">
+        <div class="sample">
+          <div class="panel-head"><span class="label">namaste.aak</span><span class="label">01</span></div>
+<pre><span class="c"># Hinglish keywords, real interpreter</span>
+<span class="k">dhacha</span> Vyakti { naam, umar };
+
+<span class="k">kaam</span> Vyakti.parichay() {
+    <span class="k">wapas</span> <span class="s">"Main {yeh.naam}, umar {yeh.umar}"</span>;
+}
+
+<span class="k">badlo</span> p = Vyakti { naam: <span class="s">"Adarsh"</span>, umar: 24 };
+<span class="k">agar</span> (p.umar >= 18 <span class="k">aur</span> p.naam != <span class="k">khali</span>) {
+    <span class="k">dikhao</span>(p.parichay());
+}</pre>
+          <div class="out">Main Adarsh, umar 24</div>
+        </div>
+        <figcaption class="label sample-note">Records, methods, interpolation and <code>aur</code> in a few lines.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="block" id="playground">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="num">01</span><h2>Playground</h2>
+        <p>Edit the code and press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> (or <kbd>⌘</kbd> + <kbd>Enter</kbd>) to run it.</p>
+      </div>
+      <form id="codeForm" class="panel" onsubmit="runCode(event)">
+        <div class="panel-head"><span class="label">main.aak</span><span class="label" id="ready-label">Loading…</span></div>
+        <div class="editor">
+          <div class="gutter" id="gutter" aria-hidden="true">1</div>
+          <textarea id="source_code" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="AdarshLang code"
+            placeholder="badlo naam = &quot;Adarsh&quot;;&#10;dikhao(&quot;Namaste, {naam}!&quot;);"></textarea>
+        </div>
+        <details class="stdin">
+          <summary>Input for <code>padho()</code>, one value per line</summary>
+          <textarea id="stdin" spellcheck="false" placeholder="Adarsh&#10;24"></textarea>
+        </details>
+        <div class="toolbar">
+          <button type="submit" id="run-btn" class="btn btn-primary">Run code <span aria-hidden="true">→</span></button>
+          <button type="button" class="btn btn-ghost" onclick="copyCode(this)">Copy</button>
+          <button type="button" class="btn btn-ghost" onclick="resetEditor()">Reset</button>
+          <span class="hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> to run · <kbd>Tab</kbd> indents</span>
+        </div>
+      </form>
+      <div id="output-card" class="panel" aria-live="polite">
+        <div class="panel-head">
+          <span class="status"><span class="dot" id="status-dot"></span><span class="label" id="output-label">Output</span></span>
+          <button class="btn btn-ghost" onclick="clearOutput()">Clear</button>
+        </div>
+        <pre id="output-pre"></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="examples">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="num">02</span><h2>Examples</h2>
+        <p>Pick one to load it into the playground, then run it.</p>
+      </div>
+      <ul class="examples" id="example-list"></ul>
+    </div>
+  </section>
+
+  <section class="block" id="docs">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="num">03</span><h2>Docs</h2>
+        <p>The whole language on one page.</p>
+      </div>
+      <div class="docs">
+        <div class="doc"><h3>Basics</h3><ul>
+          <li>Variable: <code>badlo x = 10;</code></li>
+          <li>Print: <code>dikhao(x);</code></li>
+          <li>Booleans: <code>sahi_hai_be</code> / <code>jhuth</code></li>
+          <li>Null: <code>khali</code></li>
+          <li>Comment: <code># yeh comment hai</code></li>
+          <li>Interpolation: <code>"Hi {naam}!"</code></li>
+          <li>Input: <code>padho("Naam? ")</code></li>
+        </ul></div>
+        <div class="doc"><h3>Operators</h3><ul>
+          <li>Math: <code>+ - * / % **</code></li>
+          <li>Compare: <code>== != &lt; &gt; &lt;= &gt;=</code></li>
+          <li>Logic: <code>aur</code> <code>ya</code> <code>nahin</code> (or <code>&amp;&amp; || !</code>)</li>
+          <li>Compound: <code>+= -= *= /= %=</code></li>
+          <li>Numbers: <code>42</code> <code>3.14</code> <code>.5</code> <code>1e6</code> <code>1_000</code></li>
+        </ul></div>
+        <div class="doc"><h3>Control flow</h3><ul>
+          <li>If: <code>agar (c) { } warna { }</code></li>
+          <li>While: <code>jabtak (c) { }</code></li>
+          <li>For: <code>ginnati (badlo i = 0; i &lt; 5; i += 1) { }</code></li>
+          <li>For-each: <code>ke_liye (badlo x in list) { }</code></li>
+          <li>Switch: <code>chuno (x) { case 1, 2: … warna_case: … }</code></li>
+          <li>Break / continue: <code>bas;</code> <code>aage_badho;</code></li>
+        </ul></div>
+        <div class="doc"><h3>Functions</h3><ul>
+          <li>Define: <code>kaam add(a, b) { wapas a + b; }</code></li>
+          <li>Defaults: <code>kaam f(n, m = 2) { }</code></li>
+          <li>Varargs: <code>kaam total(baaki nums) { }</code></li>
+          <li>Anonymous: <code>kaam (x) { wapas x * 2; }</code></li>
+          <li>Use before defining. Functions can be nested.</li>
+        </ul></div>
+        <div class="doc"><h3>Data</h3><ul>
+          <li>List: <code>[1, 2, 3]</code> with <code>push pop sort slice</code></li>
+          <li>Dict: <code>{"key": "value"}</code> with <code>keys values hatao</code></li>
+          <li>Record: <code>dhacha Vyakti { naam, umar };</code></li>
+          <li>Create: <code>Vyakti { naam: "A", umar: 9 }</code></li>
+          <li>Method: <code>kaam Vyakti.hi() { wapas yeh.naam; }</code></li>
+        </ul></div>
+        <div class="doc"><h3>Errors &amp; modules</h3><ul>
+          <li>Catch: <code>pakdo { } chhoddo (err) { }</code></li>
+          <li>Catches runtime errors too, e.g. <code>1 / 0</code></li>
+          <li>Throw: <code>chhoddo("message");</code></li>
+          <li>Import: <code>lao "utils.aak";</code> (CLI)</li>
+          <li>Builtins: <code>length push pop rakho nikalo hatao map filter reduce random_number current_time abs floor ceil upper lower join split prakar shabdme sankhya range keys values contains sort reverse slice replace trim find min_val max_val round_val padho</code></li>
+        </ul></div>
+      </div>
+      <div class="install">
+        <div class="label">Run it on your computer</div>
+        <pre>cargo install --git https://github.com/anonymousAAK/adarshLang adarshlang
+adarsh hello.aak          # run a program
+adarsh                    # REPL
+adarsh build hello.aak    # make a standalone executable</pre>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="row">
+      <a class="brand" href="#top" style="text-decoration:none">AdarshLang</a>
+      <span>Apni bhasha, apna code. · <a href="https://github.com/anonymousAAK/adarshLang">GitHub</a> · <a href="https://www.adarshkeshri.in/">Adarsh Keshri</a></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+var snippets = {
+
+interpolation: `# String interpolation: {expression} inside a string
+badlo naam = "Adarsh";
+badlo items = ["chai", "samosa", "jalebi"];
+dikhao("Namaste, {naam}!");
+dikhao("Aapne {length(items)} cheezein li: {join(items, ", ")}");
+dikhao("2 ki power 10 = {2 ** 10}");
+dikhao("Literal braces ke liye: \\{yeh code nahi\\}");`,
+
+methods: `# dhacha records with methods (yeh = this record)
+dhacha Account { naam, balance };
+
+kaam Account.jama(rakam) {
+    yeh.balance += rakam;
+    wapas yeh;
+}
+
+kaam Account.nikaalo(rakam) {
+    agar (rakam > yeh.balance) {
+        chhoddo("Balance kam hai! Sirf {yeh.balance} bacha hai.");
+    }
+    yeh.balance -= rakam;
+}
+
+badlo acc = Account { naam: "Adarsh", balance: 100 };
+acc.jama(50);
+dikhao(acc);
+
+pakdo {
+    acc.nikaalo(500);
+} chhoddo (err) {
+    dikhao("Galti: {err}");
+}`,
+
+logic: `# aur (and), ya (or), nahin (not) — with short-circuit
+badlo user = khali;
+
+# 'aur' stops early, so user.naam is never read when user is khali
+agar (user != khali aur user.naam == "Adarsh") {
+    dikhao("Swagat hai!");
+} warna {
+    dikhao("Koi user nahi");
+}
+
+badlo umar = 20;
+dikhao(umar >= 18 aur umar < 60);
+dikhao(umar < 13 ya umar > 65);
+dikhao(nahin (umar == 20));`,
+
+errors: `# pakdo / chhoddo catches your own errors AND runtime errors
+kaam safe_divide(a, b) {
+    pakdo {
+        wapas a / b;
+    } chhoddo (err) {
+        dikhao("Pakda gaya: {err}");
+        wapas khali;
+    }
+}
+
+dikhao(safe_divide(10, 2));
+dikhao(safe_divide(1, 0));
+
+badlo marks = {"math": 90};
+pakdo {
+    dikhao(marks["science"]);
+} chhoddo (err) {
+    dikhao("Pakda gaya: {err}");
+}
+
+# Uncaught errors show the exact line and column:
+badlo x = "5" + 1;`,
+
+input: `# padho() reads one line from the Input box (above the Run button)
+badlo naam = padho("Aapka naam? ");
+agar (naam == khali) {
+    naam = "dost";
+    dikhao("(Input box khali hai, isliye 'dost' use kiya)");
+}
+dikhao("Namaste, {naam}!");`,
+
+hello: `# Hello World in AdarshLang!
+dikhao("Namaste Duniya!");
+dikhao("AdarshLang mein aapka swagat hai!");`,
+
+variables: `# Variables & Types
+badlo naam = "Adarsh";
+badlo umar = 24;
+badlo pi = 3.14;
+badlo active = sahi_hai_be;
+badlo kuch_nahi = khali;
+
+dikhao("Naam: ");
+dikhao(naam);
+dikhao("Umar: ");
+dikhao(umar);
+dikhao("Pi: ");
+dikhao(pi);
+dikhao("Active: ");
+dikhao(active);
+dikhao("Kuch nahi: ");
+dikhao(kuch_nahi);`,
+
+ifelse: `# If / Else (agar / warna)
+badlo marks = 75;
+
+agar (marks >= 90) {
+    dikhao("Grade: A+");
+} warna agar (marks >= 80) {
+    dikhao("Grade: A");
+} warna agar (marks >= 70) {
+    dikhao("Grade: B");
+} warna agar (marks >= 60) {
+    dikhao("Grade: C");
+} warna {
+    dikhao("Grade: F - padhai karo!");
+}
+
+# Logical operators
+badlo age = 20;
+badlo hasID = sahi_hai_be;
+agar (age >= 18 && hasID) {
+    dikhao("Entry allowed!");
+} warna {
+    dikhao("Entry denied!");
+}`,
+
+loops: `# While loop (jabtak)
+badlo countdown = 5;
+dikhao("Countdown shuru:");
+jabtak (countdown > 0) {
+    dikhao(countdown);
+    countdown -= 1;
+}
+dikhao("Blast off!");
+
+# For loop (ginnati) with +=
+dikhao("\nSquares:");
+ginnati (badlo i = 1; i <= 5; i += 1) {
+    dikhao(i ** 2);
+}
+
+# For-each (ke_liye)
+dikhao("\nFruits:");
+badlo fruits = ["Seb", "Kela", "Amrud", "Aam"];
+ke_liye (badlo fruit in fruits) {
+    dikhao(fruit);
+}
+
+# Break (bas) and Continue (aage_badho)
+dikhao("\nSkip 3, stop at 7:");
+ginnati (badlo i = 1; i <= 10; i += 1) {
+    agar (i == 3) { aage_badho; }
+    agar (i == 7) { bas; }
+    dikhao(i);
+}`,
+
+functions: `# Functions (kaam)
+kaam namaste(naam) {
+    dikhao("Namaste, " + naam + "!");
+}
+namaste("Adarsh");
+namaste("Duniya");
+
+# Return values (wapas)
+kaam add(a, b) {
+    wapas a + b;
+}
+dikhao("3 + 7 = ");
+dikhao(add(3, 7));
+
+# Default parameters
+kaam greet(naam, msg = "Kaise ho?") {
+    dikhao(naam + " - " + msg);
+}
+greet("Rahul");
+greet("Priya", "Bahut acche!");
+
+# Varargs (baaki)
+kaam totalKar(baaki nums) {
+    badlo sum = 0;
+    ke_liye (badlo n in nums) {
+        sum += n;
+    }
+    wapas sum;
+}
+dikhao("Total: ");
+dikhao(totalKar(10, 20, 30, 40));
+
+# Anonymous functions
+badlo square = kaam (x) { wapas x ** 2; };
+dikhao("5 squared = ");
+dikhao(square(5));`,
+
+lists: `# Lists
+badlo numbers = [10, 20, 30, 40, 50];
+dikhao("Original: ");
+dikhao(numbers);
+
+# Length
+dikhao("Length: ");
+dikhao(length(numbers));
+
+# Push & Pop
+push(numbers, 60);
+dikhao("After push(60): ");
+dikhao(numbers);
+
+badlo removed = pop(numbers);
+dikhao("Popped: ");
+dikhao(removed);
+
+# Index access & update
+dikhao("Element [2]: ");
+dikhao(numbers[2]);
+numbers[0] = 99;
+dikhao("After numbers[0]=99: ");
+dikhao(numbers);
+
+# Sort & Reverse
+badlo messy = [5, 1, 4, 2, 3];
+dikhao("Sorted: ");
+dikhao(sort(messy));
+dikhao("Reversed: ");
+dikhao(reverse(messy));
+
+# Slice
+dikhao("Slice [1:4]: ");
+dikhao(slice(numbers, 1, 4));
+
+# Contains & Find
+dikhao("Contains 30? ");
+dikhao(contains(numbers, 30));
+dikhao("Index of 30: ");
+dikhao(find(numbers, 30));`,
+
+dicts: `# Dictionaries
+badlo student = {"naam": "Adarsh", "umar": 24, "shahar": "Indore"};
+dikhao("Student: ");
+dikhao(student);
+
+# Access
+dikhao("Naam: ");
+dikhao(student["naam"]);
+
+# Add with rakho
+rakho(student, "marks", 95);
+dikhao("After adding marks: ");
+dikhao(student);
+
+# Safe access with nikalo
+dikhao("Shahar: ");
+dikhao(nikalo(student, "shahar"));
+dikhao("Phone (default): ");
+dikhao(nikalo(student, "phone", "not available"));
+
+# Keys & Values
+dikhao("Keys: ");
+dikhao(keys(student));
+dikhao("Values: ");
+dikhao(values(student));
+
+# Contains check
+dikhao("Has naam? ");
+dikhao(contains(student, "naam"));
+dikhao("Has email? ");
+dikhao(contains(student, "email"));`,
+
+structs: `# Structs (dhacha)
+dhacha Car { brand, model, year, color };
+
+badlo myCar = Car { brand: "Maruti", model: "Swift", year: 2023, color: "Red" };
+dikhao("My car:");
+dikhao(myCar.brand + " " + myCar.model);
+dikhao("Year: ");
+dikhao(myCar.year);
+dikhao("Color: ");
+dikhao(myCar.color);
+
+# Modify attribute
+myCar.color = "Blue";
+dikhao("Repainted: ");
+dikhao(myCar.color);
+
+# Function that creates structs
+dhacha Point { x, y };
+
+kaam makePoint(x, y) {
+    wapas Point { x: x, y: y };
+}
+
+kaam distance(p1, p2) {
+    badlo dx = p1.x - p2.x;
+    badlo dy = p1.y - p2.y;
+    wapas (dx ** 2 + dy ** 2) ** 0.5;
+}
+
+badlo a = makePoint(0, 0);
+badlo b = makePoint(3, 4);
+dikhao("Distance: ");
+dikhao(distance(a, b));`,
+
+switch: `# Switch (chuno)
+badlo day = "somvar";
+
+chuno (day) {
+    case "somvar":
+        dikhao("Monday - Kaam shuru!");
+    case "shukravar":
+        dikhao("Friday - Party time!");
+    case "ravivar":
+        dikhao("Sunday - Aaraam!");
+    warna_case:
+        dikhao("Koi aur din hai");
+}
+
+# Multi-value case
+badlo grade = "B";
+chuno (grade) {
+    case "A", "A+":
+        dikhao("Excellent!");
+    case "B", "B+":
+        dikhao("Good job!");
+    case "C":
+        dikhao("Average");
+    warna_case:
+        dikhao("Need improvement");
+}`,
+
+trycatch: `# Try/Catch (pakdo/chhoddo)
+pakdo {
+    dikhao("Trying something risky...");
+    chhoddo("Oops! Galti ho gayi!");
+    dikhao("This won't print");
+} chhoddo (err) {
+    dikhao("Caught error: ");
+    dikhao(err);
+}
+
+# Custom error handling
+kaam divide(a, b) {
+    agar (b == 0) {
+        chhoddo("Cannot divide by zero!");
+    }
+    wapas a / b;
+}
+
+pakdo {
+    dikhao(divide(10, 2));
+    dikhao(divide(10, 0));
+} chhoddo (err) {
+    dikhao("Error pakda: ");
+    dikhao(err);
+}`,
+
+math: `# Math Built-in Functions
+dikhao("abs(-42) = ");
+dikhao(abs(-42));
+
+dikhao("floor(4.7) = ");
+dikhao(floor(4.7));
+
+dikhao("ceil(4.2) = ");
+dikhao(ceil(4.2));
+
+dikhao("round_val(4.6) = ");
+dikhao(round_val(4.6));
+
+dikhao("round_val(4.4) = ");
+dikhao(round_val(4.4));
+
+dikhao("min_val(10, 20) = ");
+dikhao(min_val(10, 20));
+
+dikhao("max_val(10, 20) = ");
+dikhao(max_val(10, 20));
+
+dikhao("random_number(1, 100) = ");
+dikhao(random_number(1, 100));
+
+# Power & Modulo
+dikhao("2 ** 10 = ");
+dikhao(2 ** 10);
+dikhao("17 % 5 = ");
+dikhao(17 % 5);`,
+
+strings: `# String Built-in Functions
+badlo text = "  Namaste Duniya  ";
+
+dikhao("Original: '" + text + "'");
+dikhao("Trimmed: '" + trim(text) + "'");
+dikhao("Upper: " + upper(trim(text)));
+dikhao("Lower: " + lower(trim(text)));
+
+# Split & Join
+badlo words = split("seb,kela,amrud,aam", ",");
+dikhao("Split: ");
+dikhao(words);
+dikhao("Joined: " + join(words, " | "));
+
+# Replace
+dikhao("Replace: " + replace("Hello World", "World", "Duniya"));
+
+# Find
+dikhao("Find 'Duniya' in 'Namaste Duniya': ");
+dikhao(find("Namaste Duniya", "Duniya"));
+
+# Reverse string
+dikhao("Reverse 'namaste': " + reverse("namaste"));
+
+# Escape sequences
+dikhao("Tab:\there");
+dikhao("Newline:\nhere");
+dikhao("Quote: \\"hello\\"");`,
+
+functional: `# Functional Programming: map, filter, reduce
+
+badlo numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+# Map - square every number
+badlo squares = map(kaam (x) { wapas x ** 2; }, numbers);
+dikhao("Squares: ");
+dikhao(squares);
+
+# Filter - keep only even numbers
+badlo evens = filter(kaam (x) { wapas x % 2 == 0; }, numbers);
+dikhao("Evens: ");
+dikhao(evens);
+
+# Reduce - sum all numbers
+badlo total = reduce(kaam (acc, x) { wapas acc + x; }, numbers, 0);
+dikhao("Sum: ");
+dikhao(total);
+
+# Chain them: sum of squares of even numbers
+badlo result = reduce(
+    kaam (acc, x) { wapas acc + x; },
+    map(
+        kaam (x) { wapas x ** 2; },
+        filter(kaam (x) { wapas x % 2 == 0; }, numbers)
+    ),
+    0
+);
+dikhao("Sum of squares of evens: ");
+dikhao(result);`,
+
+compound: `# Compound Assignment Operators (+=, -=, *=, /=, %=)
+badlo x = 10;
+dikhao("Start: ");
+dikhao(x);
+
+x += 5;
+dikhao("x += 5 => ");
+dikhao(x);
+
+x -= 3;
+dikhao("x -= 3 => ");
+dikhao(x);
+
+x *= 2;
+dikhao("x *= 2 => ");
+dikhao(x);
+
+x /= 6;
+dikhao("x /= 6 => ");
+dikhao(x);
+
+x %= 3;
+dikhao("x %= 3 => ");
+dikhao(x);
+
+# Works on list elements too
+badlo scores = [10, 20, 30];
+scores[1] += 100;
+dikhao("scores after scores[1] += 100:");
+dikhao(scores);
+
+# Ginnati loop with +=
+badlo sum = 0;
+ginnati (badlo i = 1; i <= 100; i += 1) {
+    sum += i;
+}
+dikhao("Sum 1 to 100: ");
+dikhao(sum);`,
+
+power_mod: `# Power (**) and Modulo (%) Operators
+dikhao("=== Power ===");
+dikhao("2 ** 8 = ");
+dikhao(2 ** 8);
+dikhao("5 ** 3 = ");
+dikhao(5 ** 3);
+dikhao("9 ** 0.5 = ");
+dikhao(9 ** 0.5);
+
+dikhao("\n=== Modulo ===");
+dikhao("10 % 3 = ");
+dikhao(10 % 3);
+dikhao("25 % 7 = ");
+dikhao(25 % 7);
+
+# Even/Odd checker
+dikhao("\nEven or Odd:");
+ginnati (badlo i = 1; i <= 10; i += 1) {
+    agar (i % 2 == 0) {
+        dikhao(shabdme(i) + " is even");
+    } warna {
+        dikhao(shabdme(i) + " is odd");
+    }
+}`,
+
+null: `# Null (khali)
+badlo x = khali;
+dikhao("x = ");
+dikhao(x);
+dikhao("prakar(khali) = ");
+dikhao(prakar(x));
+
+# Null comparison
+agar (x == khali) {
+    dikhao("x is khali (null)!");
+}
+
+# Assign a value
+x = 42;
+dikhao("Now x = ");
+dikhao(x);
+agar (x != khali) {
+    dikhao("x is no longer khali!");
+}
+
+# Use in functions
+kaam findUser(id) {
+    agar (id == 1) {
+        wapas "Adarsh";
+    }
+    wapas khali;
+}
+
+badlo user1 = findUser(1);
+badlo user2 = findUser(99);
+dikhao("User 1: ");
+dikhao(user1);
+dikhao("User 99: ");
+dikhao(user2);`,
+
+typecheck: `# Type Checking with prakar()
+dikhao("prakar(42) = " + prakar(42));
+dikhao("prakar(3.14) = " + prakar(3.14));
+dikhao("prakar(\\"hello\\") = " + prakar("hello"));
+dikhao("prakar(sahi_hai_be) = " + prakar(sahi_hai_be));
+dikhao("prakar([1,2]) = " + prakar([1, 2]));
+dikhao("prakar({}) = " + prakar({"a": 1}));
+dikhao("prakar(khali) = " + prakar(khali));
+
+# Type conversion
+badlo numStr = "123";
+dikhao("\nBefore: " + prakar(numStr) + " => " + numStr);
+badlo num = sankhya(numStr);
+dikhao("After sankhya: " + prakar(num));
+dikhao(num + 1);
+
+badlo val = 456;
+badlo str = shabdme(val);
+dikhao("\nshabdme(456): " + prakar(str) + " => " + str);
+dikhao("shabdme(sahi_hai_be) => " + shabdme(sahi_hai_be));
+dikhao("shabdme(khali) => " + shabdme(khali));`,
+
+range: `# Range & Iteration
+dikhao("range(5):");
+dikhao(range(5));
+
+dikhao("\nrange(3, 8):");
+dikhao(range(3, 8));
+
+dikhao("\nrange(0, 50, 10):");
+dikhao(range(0, 50, 10));
+
+# Sum using range
+badlo total = 0;
+ke_liye (badlo n in range(1, 11)) {
+    total += n;
+}
+dikhao("\nSum 1-10: ");
+dikhao(total);
+
+# Multiplication table
+dikhao("\n5 ka table:");
+ke_liye (badlo i in range(1, 11)) {
+    dikhao("5 x " + shabdme(i) + " = " + shabdme(5 * i));
+}`,
+
+collections: `# Collection Helper Functions
+
+# sort
+badlo nums = [42, 7, 15, 3, 99, 28];
+dikhao("Original: ");
+dikhao(nums);
+dikhao("Sorted: ");
+dikhao(sort(nums));
+
+# reverse
+dikhao("Reversed: ");
+dikhao(reverse(nums));
+dikhao("Reverse string: " + reverse("AdarshLang"));
+
+# slice
+dikhao("Slice [1:4]: ");
+dikhao(slice(nums, 1, 4));
+dikhao("Slice string: " + slice("AdarshLang", 0, 6));
+
+# contains
+dikhao("Contains 42? ");
+dikhao(contains(nums, 42));
+dikhao("Contains 100? ");
+dikhao(contains(nums, 100));
+
+# find
+dikhao("Find 99: index ");
+dikhao(find(nums, 99));
+dikhao("Find 'Lang' in 'AdarshLang': index ");
+dikhao(find("AdarshLang", "Lang"));
+
+# keys, values
+badlo info = {"naam": "Adarsh", "lang": "AdarshLang", "version": 2};
+dikhao("Keys: ");
+dikhao(keys(info));
+dikhao("Values: ");
+dikhao(values(info));
+
+# min_val, max_val
+dikhao("min(3, 7) = ");
+dikhao(min_val(3, 7));
+dikhao("max(3, 7) = ");
+dikhao(max_val(3, 7));`,
+
+fizzbuzz: `# FizzBuzz - Classic programming challenge!
+ginnati (badlo i = 1; i <= 30; i += 1) {
+    agar (i % 15 == 0) {
+        dikhao("FizzBuzz");
+    } warna agar (i % 3 == 0) {
+        dikhao("Fizz");
+    } warna agar (i % 5 == 0) {
+        dikhao("Buzz");
+    } warna {
+        dikhao(i);
+    }
+}`,
+
+all_features: `# === AdarshLang - ALL Features Demo ===
+
+# 1. Variables & Types
+badlo naam = "Adarsh";
+badlo umar = 24;
+badlo active = sahi_hai_be;
+badlo nothing = khali;
+dikhao("--- Variables ---");
+dikhao(naam);
+dikhao(umar);
+dikhao(active);
+dikhao(nothing);
+
+# 2. Arithmetic with %, **, +=
+badlo x = 10;
+x += 5;
+dikhao("\n--- Operators ---");
+dikhao("10 + 5 = " + shabdme(x));
+dikhao("17 % 5 = " + shabdme(17 % 5));
+dikhao("2 ** 10 = " + shabdme(2 ** 10));
+
+# 3. If/Else
+dikhao("\n--- If/Else ---");
+agar (umar >= 18) {
+    dikhao(naam + " is an adult");
+} warna {
+    dikhao(naam + " is a minor");
+}
+
+# 4. Loops
+dikhao("\n--- Loops ---");
+ginnati (badlo i = 1; i <= 5; i += 1) {
+    dikhao("Square of " + shabdme(i) + " = " + shabdme(i ** 2));
+}
+
+# 5. Functions
+dikhao("\n--- Functions ---");
+kaam factorial(n) {
+    agar (n <= 1) { wapas 1; }
+    wapas n * factorial(n - 1);
+}
+dikhao("5! = " + shabdme(factorial(5)));
+
+# 6. Lists & Helpers
+dikhao("\n--- Lists ---");
+badlo nums = [5, 2, 8, 1, 9];
+dikhao("Original: ");
+dikhao(nums);
+dikhao("Sorted: ");
+dikhao(sort(nums));
+dikhao("Reversed: ");
+dikhao(reverse(nums));
+
+# 7. Dicts
+dikhao("\n--- Dictionary ---");
+badlo person = {"naam": "Adarsh", "lang": "AdarshLang"};
+dikhao("Keys: ");
+dikhao(keys(person));
+dikhao("Contains naam? ");
+dikhao(contains(person, "naam"));
+
+# 8. Struct (dhacha)
+dikhao("\n--- Struct ---");
+dhacha Point { x, y };
+badlo p = Point { x: 3, y: 4 };
+dikhao("Point: (" + shabdme(p.x) + ", " + shabdme(p.y) + ")");
+
+# 9. Functional
+dikhao("\n--- Map/Filter/Reduce ---");
+badlo data = range(1, 11);
+badlo evens = filter(kaam (x) { wapas x % 2 == 0; }, data);
+badlo squares = map(kaam (x) { wapas x ** 2; }, evens);
+badlo total = reduce(kaam (a, b) { wapas a + b; }, squares, 0);
+dikhao("Sum of squares of evens 1-10: ");
+dikhao(total);
+
+# 10. Type checking
+dikhao("\n--- Type Checking ---");
+dikhao("prakar(42) = " + prakar(42));
+dikhao("prakar(\\"hi\\") = " + prakar("hi"));
+dikhao("prakar(khali) = " + prakar(khali));
+
+# 11. String helpers
+dikhao("\n--- Strings ---");
+dikhao(upper("namaste"));
+dikhao(replace("Hello World", "World", "Duniya"));
+dikhao(trim("  spaces  "));
+
+# 12. Try/Catch
+dikhao("\n--- Try/Catch ---");
+pakdo {
+    chhoddo("Test error!");
+} chhoddo (err) {
+    dikhao("Caught: " + err);
+}
+
+# 13. Switch
+dikhao("\n--- Switch ---");
+badlo mood = "khush";
+chuno (mood) {
+    case "udaas":
+        dikhao("Cheer up!");
+    case "khush":
+        dikhao("Great mood!");
+    warna_case:
+        dikhao("Unknown mood");
+}
+
+# 14. Range
+dikhao("\n--- Range ---");
+dikhao(range(0, 20, 5));
+
+# 15. Math
+dikhao("\n--- Math ---");
+dikhao("floor(4.7) = " + shabdme(floor(4.7)));
+dikhao("ceil(4.2) = " + shabdme(ceil(4.2)));
+dikhao("abs(-99) = " + shabdme(abs(-99)));
+dikhao("min(3,7) = " + shabdme(min_val(3, 7)));
+dikhao("max(3,7) = " + shabdme(max_val(3, 7)));
+
+dikhao("\n=== Sab features kaam kar rahe hain! ===");`
+
+};
+
+
+var EXAMPLES = [
+  ['hello', 'Hello World'], ['variables', 'Variables & types'], ['interpolation', 'String interpolation', 1],
+  ['ifelse', 'If / else'], ['logic', 'aur / ya / nahin', 1], ['loops', 'Loops'],
+  ['functions', 'Functions'], ['lists', 'Lists'], ['dicts', 'Dictionaries'],
+  ['structs', 'Records (dhacha)'], ['methods', 'Record methods', 1], ['switch', 'Switch (chuno)'],
+  ['trycatch', 'Try / catch'], ['errors', 'Catching errors', 1], ['input', 'Input (padho)', 1],
+  ['math', 'Math builtins'], ['strings', 'String builtins'], ['functional', 'Map / filter / reduce'],
+  ['compound', 'Compound assignment'], ['power_mod', 'Power & modulo'], ['null', 'Null (khali)'],
+  ['typecheck', 'Type checking'], ['range', 'Range & iteration'], ['collections', 'Collection helpers'],
+  ['fizzbuzz', 'FizzBuzz'], ['all_features', 'All features demo']
+];
+var DEFAULT_CODE = snippets.hello;
+var editor = document.getElementById('source_code');
+var gutter = document.getElementById('gutter');
+
+function updateGutter() {
+  var n = editor.value.split('\n').length, s = '';
+  for (var i = 1; i <= n; i++) s += i + '\n';
+  gutter.textContent = s;
+  gutter.scrollTop = editor.scrollTop;
+}
+editor.addEventListener('input', updateGutter);
+editor.addEventListener('scroll', function () { gutter.scrollTop = editor.scrollTop; });
+editor.addEventListener('keydown', function (e) {
+  if (e.key === 'Tab' && !e.shiftKey) {
+    e.preventDefault();
+    var s = editor.selectionStart, t = editor.selectionEnd;
+    editor.value = editor.value.slice(0, s) + '    ' + editor.value.slice(t);
+    editor.selectionStart = editor.selectionEnd = s + 4;
+    updateGutter();
+  }
+});
+
+(function buildExamples() {
+  var list = document.getElementById('example-list');
+  EXAMPLES.forEach(function (ex, i) {
+    if (!snippets[ex[0]]) return;
+    var li = document.createElement('li'), b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = '<span class="num">' + String(i + 1).padStart(2, '0') + '</span>' + ex[1].replace(/&/g, '&amp;') + (ex[2] ? '<span class="new">new</span>' : '');
+    b.onclick = function () { loadSnippet(ex[0], b); };
+    li.appendChild(b); list.appendChild(li);
+  });
+})();
+
+function loadSnippet(name, btn) {
+  editor.value = snippets[name];
+  updateGutter();
+  clearOutput();
+  document.querySelectorAll('.examples button').forEach(function (x) { x.setAttribute('aria-pressed', x === btn ? 'true' : 'false'); });
+  document.getElementById('playground').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  editor.focus({ preventScroll: true });
+}
+
+var worker = null;
+var TIME_LIMIT_MS = 5000;
+
+function getWorker() {
+  if (!worker) {
+    worker = new Worker('worker.js');
+    worker.postMessage({ warmup: true });
+  }
+  return worker;
+}
+
+// Runs code in a Web Worker (the Rust interpreter compiled to WebAssembly).
+// A program that runs too long is stopped by terminating the worker.
+function runInWorker(code, input) {
+  return new Promise(function (resolve, reject) {
+    var w = getWorker();
+    var timer = setTimeout(function () {
+      w.terminate(); worker = null;
+      reject(new Error('Galti: Program ' + (TIME_LIMIT_MS / 1000) + ' second se zyada chala, isliye roka gaya. Shayad koi infinite loop hai?'));
+    }, TIME_LIMIT_MS);
+    w.onmessage = function (e) { if (e.data.ready) return; clearTimeout(timer); resolve(e.data); };
+    w.onerror = function (e) { clearTimeout(timer); worker = null; reject(new Error('Playground error: ' + e.message)); };
+    w.postMessage({ code: code, input: input });
+  });
+}
+
+async function runCode(event) {
+  if (event) event.preventDefault();
+  var btn = document.getElementById('run-btn'), card = document.getElementById('output-card');
+  var pre = document.getElementById('output-pre'), label = document.getElementById('output-label');
+  var dot = document.getElementById('status-dot');
+  btn.innerHTML = '<span class="spin">◌</span> Running…';
+  btn.disabled = true;
+  pre.className = ''; pre.textContent = '';
+  card.style.display = 'block';
+  label.textContent = 'Output'; dot.className = 'dot';
+  try {
+    var data = await runInWorker(editor.value, document.getElementById('stdin').value);
+    if (data.error) {
+      pre.className = 'error-output'; label.textContent = 'Error'; dot.className = 'dot err';
+      pre.textContent = (data.output ? data.output + '\n' : '') + data.error;
+    } else {
+      label.textContent = 'Output · ' + (data.ms < 1 ? '<1' : Math.round(data.ms)) + ' ms';
+      pre.textContent = data.output || '(no output)';
+    }
+  } catch (err) {
+    pre.className = 'error-output'; label.textContent = 'Error'; dot.className = 'dot err';
+    pre.textContent = err.message;
+  } finally {
+    btn.innerHTML = 'Run code <span aria-hidden="true">→</span>';
+    btn.disabled = false;
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function clearOutput() {
+  document.getElementById('output-card').style.display = 'none';
+  document.getElementById('output-pre').textContent = '';
+}
+function copyCode(btn) {
+  navigator.clipboard.writeText(editor.value).then(function () {
+    var t = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = t; }, 1200);
+  });
+}
+function resetEditor() { editor.value = DEFAULT_CODE; updateGutter(); clearOutput(); }
+function toggleTheme() {
+  var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('aak-theme', next); } catch (e) {}
+}
+document.addEventListener('keydown', function (e) {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); runCode(); }
+});
+if (!editor.value) editor.value = DEFAULT_CODE;
+updateGutter();
+getWorker().addEventListener('message', function (e) {
+  if (e.data.ready) document.getElementById('ready-label').textContent = 'Ready · runs locally';
+});
+</script>
+</body>
+</html>

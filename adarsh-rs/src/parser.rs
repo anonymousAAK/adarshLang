@@ -1,22 +1,18 @@
-//! Recursive-descent parser (port of `adarsh_lang/parser.py`).
+//! Recursive-descent parser.
 //!
-//! The grammar, precedence and error messages follow the Python implementation.
+//! Precedence (low → high): `ya` · `aur` · `== !=` · `< > <= >=` · `+ -` ·
+//! `* / %` · unary `- nahin` · `**` (right-assoc) · postfix call/index/attr.
 
 use crate::ast::*;
-use crate::error::AdarshError;
-use crate::lexer::{Tok, TokValue, Token};
+use crate::error::{AdarshError, Pos};
+use crate::lexer::{Lexer, RawPart, Tok, TokValue, Token};
 use std::rc::Rc;
 
 type PResult<T> = Result<T, AdarshError>;
 
 pub struct Parser {
     tokens: Vec<Token>,
-    pos: usize,
-    eof: Token,
-}
-
-fn perr(msg: impl Into<String>) -> AdarshError {
-    AdarshError::Parse(msg.into())
+    i: usize,
 }
 
 fn compound_op(t: Tok) -> Option<BinOp> {
@@ -30,522 +26,586 @@ fn compound_op(t: Tok) -> Option<BinOp> {
     })
 }
 
+fn expr(kind: ExprKind, pos: Pos) -> Expr {
+    Expr { kind, pos }
+}
+
+fn node(kind: NodeKind, pos: Pos) -> Node {
+    Node { kind, pos }
+}
+
+/// Move `dhacha` and `kaam` definitions to the front of a block (stable), so
+/// types and functions can be used before the line that defines them.
+fn hoist(stmts: Vec<Node>) -> Vec<Node> {
+    let (mut types, mut funcs, mut rest) = (Vec::new(), Vec::new(), Vec::new());
+    for s in stmts {
+        match s.kind {
+            NodeKind::DhachaDef(..) => types.push(s),
+            NodeKind::KaamDef(_) => funcs.push(s),
+            _ => rest.push(s),
+        }
+    }
+    types.extend(funcs);
+    types.extend(rest);
+    types
+}
+
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Parser {
-            tokens,
-            pos: 0,
-            eof: Token { ty: Tok::Eof, value: TokValue::None, line: -1, column: -1 },
-        }
+        Parser { tokens, i: 0 }
     }
 
     fn cur(&self) -> &Token {
-        self.tokens.get(self.pos).unwrap_or(&self.eof)
+        &self.tokens[self.i.min(self.tokens.len() - 1)]
     }
-
     fn ty(&self) -> Tok {
         self.cur().ty
     }
+    fn peek_ty(&self, n: usize) -> Tok {
+        self.tokens.get(self.i + n).map(|t| t.ty).unwrap_or(Tok::Eof)
+    }
+    fn pos(&self) -> Pos {
+        self.cur().pos
+    }
+    fn bump(&mut self) -> Token {
+        let t = self.cur().clone();
+        if self.i < self.tokens.len() - 1 {
+            self.i += 1;
+        }
+        t
+    }
 
-    fn eat(&mut self, t: Tok) -> PResult<()> {
+    fn expected(&self, what: &str) -> AdarshError {
+        let c = self.cur();
+        let got = match c.ty {
+            Tok::Ident => format!("naam '{}'", c.text()),
+            other => format!("'{}'", other.describe()),
+        };
+        let msg = format!("Yahan {what} hona chahiye tha, par {got} mila.");
+        // a missing ';' belongs at the end of the previous line, not the start of the next
+        if what == "';'" && self.i > 0 {
+            let prev = &self.tokens[self.i - 1];
+            if prev.end.line < c.pos.line {
+                return AdarshError::syntax("Line ke ant mein ';' missing hai.", prev.end);
+            }
+        }
+        AdarshError::syntax(msg, c.pos)
+    }
+
+    fn eat(&mut self, t: Tok) -> PResult<Token> {
         if self.ty() == t {
-            self.pos += 1;
-            Ok(())
+            Ok(self.bump())
         } else {
-            let c = self.cur();
-            Err(perr(format!(
-                "Expected token type '{}' but got '{}' at line {}, col {}",
-                t.name(),
-                c.ty.name(),
-                c.line,
-                c.column
-            )))
+            Err(self.expected(&format!("'{}'", t.describe())))
         }
     }
 
-    fn eat_ident(&mut self) -> PResult<Rc<str>> {
-        let name = self.cur().text();
-        self.eat(Tok::Ident)?;
-        Ok(name.into())
+    fn ident(&mut self) -> PResult<(Rc<str>, Pos)> {
+        if self.ty() == Tok::Ident {
+            let t = self.bump();
+            Ok((t.text().into(), t.pos))
+        } else {
+            Err(self.expected("ek naam"))
+        }
     }
 
     pub fn parse_program(&mut self) -> PResult<Vec<Node>> {
         let mut stmts = Vec::new();
         while self.ty() != Tok::Eof {
-            let s = match self.ty() {
-                Tok::Kaam => self.parse_kaam_def()?,
-                Tok::Dhacha => self.parse_dhacha_def()?,
-                _ => self.parse_statement()?,
-            };
-            stmts.push(s);
+            stmts.push(self.statement()?);
         }
-        Ok(stmts)
+        Ok(hoist(stmts))
     }
 
-    fn parse_kaam_def(&mut self) -> PResult<Node> {
-        self.eat(Tok::Kaam)?;
-        let name = self.eat_ident()?;
-        self.eat(Tok::LParen)?;
-        let mut params = Vec::new();
-        if self.ty() != Tok::RParen {
-            params = self.parse_param_list()?;
-        }
-        self.eat(Tok::RParen)?;
-        let body = self.parse_block()?;
-        Ok(Node::KaamDef(Rc::new(FuncDef { name: Some(name), params, body })))
-    }
-
-    fn parse_param_list(&mut self) -> PResult<Vec<Param>> {
-        let mut params = Vec::new();
-        let mut seen_varargs = false;
-        loop {
-            let mut is_varargs = false;
-            if self.ty() == Tok::Baaki {
-                if seen_varargs {
-                    return Err(perr(
-                        "Multiple 'baaki' varargs parameters are not allowed in AdarshLang.",
-                    ));
-                }
-                self.eat(Tok::Baaki)?;
-                is_varargs = true;
-                seen_varargs = true;
+    fn block(&mut self) -> PResult<Vec<Node>> {
+        self.eat(Tok::LBrace)?;
+        let mut stmts = Vec::new();
+        while self.ty() != Tok::RBrace {
+            if self.ty() == Tok::Eof {
+                return Err(self.expected("'}'"));
             }
-            let name = self.eat_ident()?;
+            stmts.push(self.statement()?);
+        }
+        self.eat(Tok::RBrace)?;
+        Ok(hoist(stmts))
+    }
+
+    fn params(&mut self) -> PResult<Vec<Param>> {
+        self.eat(Tok::LParen)?;
+        let mut params: Vec<Param> = Vec::new();
+        while self.ty() != Tok::RParen {
+            let is_varargs = if self.ty() == Tok::Baaki {
+                let p = self.bump().pos;
+                if params.iter().any(|p| p.is_varargs) {
+                    return Err(AdarshError::syntax("Sirf ek 'baaki' parameter ho sakta hai.", p));
+                }
+                true
+            } else {
+                false
+            };
+            if params.last().is_some_and(|p| p.is_varargs) {
+                return Err(AdarshError::syntax("'baaki' parameter sabse aakhri hona chahiye.", self.pos()));
+            }
+            let (name, npos) = self.ident()?;
+            if params.iter().any(|p| p.name == name) {
+                return Err(AdarshError::syntax(format!("Parameter '{name}' do baar likha hai."), npos));
+            }
             let mut default = None;
             if self.ty() == Tok::Assign {
                 if is_varargs {
-                    return Err(perr("Varargs parameter cannot have a default value in AdarshLang."));
+                    return Err(AdarshError::syntax("'baaki' parameter ka default nahi ho sakta.", self.pos()));
                 }
-                self.eat(Tok::Assign)?;
-                default = Some(self.parse_expression()?);
+                self.bump();
+                default = Some(self.expression()?);
+            } else if !is_varargs && params.iter().any(|p| p.default.is_some()) {
+                return Err(AdarshError::syntax(
+                    format!(
+                        "Parameter '{name}' default waale parameters ke baad hai, isliye iska bhi default chahiye."
+                    ),
+                    npos,
+                ));
             }
             params.push(Param { name, default, is_varargs });
             if self.ty() != Tok::Comma {
                 break;
             }
-            self.eat(Tok::Comma)?;
-            if self.ty() == Tok::RParen {
-                break;
-            }
+            self.bump();
         }
+        self.eat(Tok::RParen)?;
         Ok(params)
     }
 
-    fn parse_statement(&mut self) -> PResult<Node> {
-        match self.ty() {
-            Tok::Badlo => self.parse_badlo(),
-            Tok::Agar => self.parse_agar(),
-            Tok::Jabtak => {
-                self.eat(Tok::Jabtak)?;
-                self.eat(Tok::LParen)?;
-                let cond = self.parse_expression()?;
-                self.eat(Tok::RParen)?;
-                let body = self.parse_block()?;
-                Ok(Node::While { cond, body })
-            }
-            Tok::Ginnati => self.parse_ginnati(),
-            Tok::KeLiye => self.parse_ke_liye(),
-            Tok::Chuno => self.parse_chuno(),
-            Tok::Dikhao => {
-                self.eat(Tok::Dikhao)?;
-                let e = self.parse_expression()?;
-                self.eat(Tok::Semi)?;
-                Ok(Node::Dikhao(e))
-            }
-            Tok::Bas => {
-                self.eat(Tok::Bas)?;
-                self.eat(Tok::Semi)?;
-                Ok(Node::Break)
-            }
-            Tok::AageBadho => {
-                self.eat(Tok::AageBadho)?;
-                self.eat(Tok::Semi)?;
-                Ok(Node::Continue)
-            }
-            Tok::Pakdo => {
-                self.eat(Tok::Pakdo)?;
-                let body = self.parse_block()?;
-                self.eat(Tok::Chhoddo)?;
-                self.eat(Tok::LParen)?;
-                let err_name = self.eat_ident()?;
-                self.eat(Tok::RParen)?;
-                let handler = self.parse_block()?;
-                Ok(Node::TryCatch { body, err_name, handler })
-            }
-            Tok::Chhoddo => {
-                self.eat(Tok::Chhoddo)?;
-                self.eat(Tok::LParen)?;
-                let e = self.parse_expression()?;
-                self.eat(Tok::RParen)?;
-                self.eat(Tok::Semi)?;
-                Ok(Node::Throw(e))
-            }
-            Tok::Lao => {
-                self.eat(Tok::Lao)?;
-                let e = self.parse_expression()?;
-                self.eat(Tok::Semi)?;
-                Ok(Node::Import(e))
-            }
-            Tok::Wapas => {
-                self.eat(Tok::Wapas)?;
-                let mut e = None;
-                if self.ty() != Tok::Semi {
-                    e = Some(self.parse_expression()?);
-                }
-                self.eat(Tok::Semi)?;
-                Ok(Node::Wapas(e))
-            }
-            Tok::LBrace => Ok(Node::Block(self.parse_block()?)),
-            _ => {
-                let e = self.parse_assignment_expression()?;
-                self.eat(Tok::Semi)?;
-                Ok(Node::Expr(e))
-            }
-        }
+    fn kaam_def(&mut self) -> PResult<Node> {
+        let pos = self.eat(Tok::Kaam)?.pos;
+        let (first, _) = self.ident()?;
+        let (name, method_of) = if self.ty() == Tok::Dot {
+            self.bump();
+            let (m, _) = self.ident()?;
+            (m, Some(first))
+        } else {
+            (first, None)
+        };
+        let params = self.params()?;
+        let body = self.block()?;
+        Ok(node(NodeKind::KaamDef(Rc::new(FuncDef { name: Some(name), method_of, params, body, pos })), pos))
     }
 
-    fn parse_badlo(&mut self) -> PResult<Node> {
-        self.eat(Tok::Badlo)?;
-        let name = self.eat_ident()?;
-        let mut init = None;
-        if self.ty() == Tok::Assign {
-            self.eat(Tok::Assign)?;
-            init = Some(self.parse_expression()?);
-        }
-        self.eat(Tok::Semi)?;
-        Ok(Node::Badlo(name, init))
-    }
-
-    fn parse_block(&mut self) -> PResult<Vec<Node>> {
+    fn dhacha_def(&mut self) -> PResult<Node> {
+        let pos = self.eat(Tok::Dhacha)?.pos;
+        let (name, _) = self.ident()?;
         self.eat(Tok::LBrace)?;
-        let mut stmts = Vec::new();
+        let mut fields: Vec<Rc<str>> = Vec::new();
         while self.ty() != Tok::RBrace {
-            if self.ty() == Tok::Eof {
-                // Python would raise on the EOF token inside parse_statement; keep the same message.
-                return Err(perr(format!(
-                    "Unexpected token 'EOF' at line {}, col {}",
-                    self.cur().line,
-                    self.cur().column
-                )));
+            let (f, fpos) = self.ident()?;
+            if fields.contains(&f) {
+                return Err(AdarshError::syntax(format!("Field '{f}' do baar likha hai."), fpos));
             }
-            stmts.push(self.parse_statement()?);
+            fields.push(f);
+            if self.ty() != Tok::Comma {
+                break;
+            }
+            self.bump();
         }
         self.eat(Tok::RBrace)?;
-        Ok(stmts)
+        if self.ty() == Tok::Semi {
+            self.bump();
+        }
+        Ok(node(NodeKind::DhachaDef(name, Rc::new(fields)), pos))
     }
 
-    fn parse_assignment_expression(&mut self) -> PResult<Expr> {
-        let expr = self.parse_expression()?;
+    fn semi(&mut self) -> PResult<()> {
+        self.eat(Tok::Semi).map(|_| ())
+    }
+
+    fn statement(&mut self) -> PResult<Node> {
+        let pos = self.pos();
+        let kind = match self.ty() {
+            Tok::Kaam if self.peek_ty(1) == Tok::Ident => return self.kaam_def(),
+            Tok::Dhacha => return self.dhacha_def(),
+            Tok::Badlo => {
+                let n = self.badlo()?;
+                self.semi()?;
+                n
+            }
+            Tok::Agar => return self.agar(),
+            Tok::Jabtak => {
+                self.bump();
+                self.eat(Tok::LParen)?;
+                let cond = self.expression()?;
+                self.eat(Tok::RParen)?;
+                NodeKind::While { cond, body: self.block()? }
+            }
+            Tok::Ginnati => self.ginnati()?,
+            Tok::KeLiye => self.ke_liye()?,
+            Tok::Chuno => self.chuno()?,
+            Tok::Dikhao => {
+                self.bump();
+                let e = self.expression()?;
+                self.semi()?;
+                NodeKind::Dikhao(e)
+            }
+            Tok::Bas => {
+                self.bump();
+                self.semi()?;
+                NodeKind::Break
+            }
+            Tok::AageBadho => {
+                self.bump();
+                self.semi()?;
+                NodeKind::Continue
+            }
+            Tok::Pakdo => {
+                self.bump();
+                let body = self.block()?;
+                self.eat(Tok::Chhoddo)?;
+                self.eat(Tok::LParen)?;
+                let (err_name, _) = self.ident()?;
+                self.eat(Tok::RParen)?;
+                NodeKind::TryCatch { body, err_name, handler: self.block()? }
+            }
+            Tok::Chhoddo => {
+                self.bump();
+                self.eat(Tok::LParen)?;
+                let e = self.expression()?;
+                self.eat(Tok::RParen)?;
+                self.semi()?;
+                NodeKind::Throw(e)
+            }
+            Tok::Lao => {
+                self.bump();
+                let e = self.expression()?;
+                self.semi()?;
+                NodeKind::Import(e)
+            }
+            Tok::Wapas => {
+                self.bump();
+                let e = if self.ty() == Tok::Semi { None } else { Some(self.expression()?) };
+                self.semi()?;
+                NodeKind::Wapas(e)
+            }
+            Tok::LBrace => NodeKind::Block(self.block()?),
+            _ => {
+                let e = self.assignment()?;
+                self.semi()?;
+                NodeKind::Expr(e)
+            }
+        };
+        Ok(node(kind, pos))
+    }
+
+    fn badlo(&mut self) -> PResult<NodeKind> {
+        self.eat(Tok::Badlo)?;
+        let (name, _) = self.ident()?;
+        let init = if self.ty() == Tok::Assign {
+            self.bump();
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        Ok(NodeKind::Badlo(name, init))
+    }
+
+    fn assignment(&mut self) -> PResult<Expr> {
+        let target = self.expression()?;
+        let pos = self.pos();
         if self.ty() == Tok::Assign {
-            self.eat(Tok::Assign)?;
-            let rhs = Box::new(self.parse_expression()?);
-            return match expr {
-                Expr::Var(name) => Ok(Expr::Assign(name, rhs)),
-                Expr::Index(c, i) => Ok(Expr::IndexAssign(c, i, rhs)),
-                Expr::Attr(t, a) => Ok(Expr::AttrAssign(t, a, rhs)),
-                _ => Err(perr("Invalid assignment target in AdarshLang.")),
+            self.bump();
+            let rhs = Box::new(self.expression()?);
+            let kind = match target.kind {
+                ExprKind::Var(n) => ExprKind::Assign(n, rhs),
+                ExprKind::Index(c, i) => ExprKind::IndexAssign(c, i, rhs),
+                ExprKind::Attr(t, a) => ExprKind::AttrAssign(t, a, rhs),
+                _ => {
+                    return Err(AdarshError::syntax(
+                        "'=' ke left mein variable, list[index] ya object.field hona chahiye.",
+                        target.pos,
+                    ))
+                }
             };
+            return Ok(expr(kind, pos));
         }
         if let Some(op) = compound_op(self.ty()) {
-            self.pos += 1;
-            let rhs = Box::new(self.parse_expression()?);
-            return match expr {
-                Expr::Var(name) => Ok(Expr::CompoundAssign(name, op, rhs)),
-                Expr::Index(c, i) => Ok(Expr::IndexCompoundAssign(c, i, op, rhs)),
-                Expr::Attr(t, a) => Ok(Expr::AttrCompoundAssign(t, a, op, rhs)),
-                _ => Err(perr("Invalid compound assignment target in AdarshLang.")),
+            self.bump();
+            let rhs = Box::new(self.expression()?);
+            let kind = match target.kind {
+                ExprKind::Var(n) => ExprKind::CompoundAssign(n, op, rhs),
+                ExprKind::Index(c, i) => ExprKind::IndexCompoundAssign(c, i, op, rhs),
+                ExprKind::Attr(t, a) => ExprKind::AttrCompoundAssign(t, a, op, rhs),
+                _ => {
+                    return Err(AdarshError::syntax(
+                        format!("'{}=' ke left mein variable, list[index] ya object.field hona chahiye.", op.symbol()),
+                        target.pos,
+                    ))
+                }
             };
+            return Ok(expr(kind, pos));
         }
-        Ok(expr)
+        Ok(target)
     }
 
-    pub fn parse_expression(&mut self) -> PResult<Expr> {
-        self.parse_or()
+    pub fn expression(&mut self) -> PResult<Expr> {
+        self.or()
     }
 
-    fn binary_level(
-        &mut self,
-        ops: &[(Tok, BinOp)],
-        next: fn(&mut Self) -> PResult<Expr>,
-    ) -> PResult<Expr> {
-        let mut node = next(self)?;
+    fn binary_level(&mut self, ops: &[(Tok, BinOp)], next: fn(&mut Self) -> PResult<Expr>) -> PResult<Expr> {
+        let mut lhs = next(self)?;
         'outer: loop {
             for (t, op) in ops {
                 if self.ty() == *t {
-                    self.pos += 1;
+                    let pos = self.bump().pos;
                     let rhs = next(self)?;
-                    node = Expr::Binary(Box::new(node), *op, Box::new(rhs));
+                    lhs = expr(ExprKind::Binary(Box::new(lhs), *op, Box::new(rhs)), pos);
                     continue 'outer;
                 }
             }
-            return Ok(node);
+            return Ok(lhs);
         }
     }
 
-    fn parse_or(&mut self) -> PResult<Expr> {
-        self.binary_level(&[(Tok::Ya, BinOp::Or)], Self::parse_and)
+    fn or(&mut self) -> PResult<Expr> {
+        self.binary_level(&[(Tok::Ya, BinOp::Or)], Self::and)
     }
-    fn parse_and(&mut self) -> PResult<Expr> {
-        self.binary_level(&[(Tok::Aur, BinOp::And)], Self::parse_equality)
+    fn and(&mut self) -> PResult<Expr> {
+        self.binary_level(&[(Tok::Aur, BinOp::And)], Self::equality)
     }
-    fn parse_equality(&mut self) -> PResult<Expr> {
-        self.binary_level(&[(Tok::Eq, BinOp::Eq), (Tok::Neq, BinOp::Neq)], Self::parse_comparison)
+    fn equality(&mut self) -> PResult<Expr> {
+        self.binary_level(&[(Tok::Eq, BinOp::Eq), (Tok::Neq, BinOp::Neq)], Self::comparison)
     }
-    fn parse_comparison(&mut self) -> PResult<Expr> {
+    fn comparison(&mut self) -> PResult<Expr> {
         self.binary_level(
             &[(Tok::Lt, BinOp::Lt), (Tok::Gt, BinOp::Gt), (Tok::Lte, BinOp::Lte), (Tok::Gte, BinOp::Gte)],
-            Self::parse_term,
+            Self::term,
         )
     }
-    fn parse_term(&mut self) -> PResult<Expr> {
-        self.binary_level(&[(Tok::Plus, BinOp::Add), (Tok::Minus, BinOp::Sub)], Self::parse_factor)
+    fn term(&mut self) -> PResult<Expr> {
+        self.binary_level(&[(Tok::Plus, BinOp::Add), (Tok::Minus, BinOp::Sub)], Self::factor)
     }
-    fn parse_factor(&mut self) -> PResult<Expr> {
-        self.binary_level(
-            &[(Tok::Mul, BinOp::Mul), (Tok::Div, BinOp::Div), (Tok::Mod, BinOp::Mod)],
-            Self::parse_unary,
-        )
+    fn factor(&mut self) -> PResult<Expr> {
+        self.binary_level(&[(Tok::Mul, BinOp::Mul), (Tok::Div, BinOp::Div), (Tok::Mod, BinOp::Mod)], Self::unary)
     }
 
-    fn parse_unary(&mut self) -> PResult<Expr> {
+    fn unary(&mut self) -> PResult<Expr> {
         let op = match self.ty() {
             Tok::Nahin => UnOp::Not,
             Tok::Minus => UnOp::Neg,
-            _ => return self.parse_power(),
+            _ => return self.power(),
         };
-        self.pos += 1;
-        let operand = self.parse_unary()?;
-        Ok(Expr::Unary(op, Box::new(operand)))
+        let pos = self.bump().pos;
+        let operand = self.unary()?;
+        Ok(expr(ExprKind::Unary(op, Box::new(operand)), pos))
     }
 
-    fn parse_power(&mut self) -> PResult<Expr> {
-        let node = self.parse_postfix()?;
+    fn power(&mut self) -> PResult<Expr> {
+        let base = self.postfix()?;
         if self.ty() == Tok::Power {
-            self.pos += 1;
-            let rhs = self.parse_unary()?;
-            return Ok(Expr::Binary(Box::new(node), BinOp::Pow, Box::new(rhs)));
+            let pos = self.bump().pos;
+            let exp = self.unary()?;
+            return Ok(expr(ExprKind::Binary(Box::new(base), BinOp::Pow, Box::new(exp)), pos));
         }
-        Ok(node)
+        Ok(base)
     }
 
-    fn parse_postfix(&mut self) -> PResult<Expr> {
-        let mut node = self.parse_primary()?;
+    fn postfix(&mut self) -> PResult<Expr> {
+        let mut e = self.primary()?;
         loop {
             match self.ty() {
                 Tok::LParen => {
-                    self.eat(Tok::LParen)?;
+                    let pos = self.bump().pos;
                     let mut args = Vec::new();
-                    if self.ty() != Tok::RParen {
-                        args.push(self.parse_expression()?);
-                        while self.ty() == Tok::Comma {
-                            self.eat(Tok::Comma)?;
-                            args.push(self.parse_expression()?);
-                        }
-                    }
-                    self.eat(Tok::RParen)?;
-                    node = Expr::Call(Box::new(node), args);
-                }
-                Tok::LBracket => {
-                    self.eat(Tok::LBracket)?;
-                    let idx = self.parse_expression()?;
-                    self.eat(Tok::RBracket)?;
-                    node = Expr::Index(Box::new(node), Box::new(idx));
-                }
-                Tok::Dot => {
-                    self.eat(Tok::Dot)?;
-                    let attr = self.eat_ident()?;
-                    node = Expr::Attr(Box::new(node), attr);
-                }
-                Tok::LBrace if matches!(node, Expr::Var(_)) => {
-                    let Expr::Var(type_name) = node else { unreachable!() };
-                    node = self.parse_dhacha_construction(type_name)?;
-                }
-                _ => return Ok(node),
-            }
-        }
-    }
-
-    fn parse_primary(&mut self) -> PResult<Expr> {
-        let tok = self.cur().clone();
-        let node = match tok.ty {
-            Tok::Ident => {
-                self.pos += 1;
-                Expr::Var(tok.text().into())
-            }
-            Tok::Number => {
-                self.pos += 1;
-                match tok.value {
-                    TokValue::Int(i) => Expr::Int(i),
-                    TokValue::BigInt(b) => Expr::BigInt(Rc::new(b)),
-                    TokValue::Float(f) => Expr::Float(f),
-                    _ => Expr::Int(0),
-                }
-            }
-            Tok::SahiHaiBe => {
-                self.pos += 1;
-                Expr::Bool(true)
-            }
-            Tok::Jhuth => {
-                self.pos += 1;
-                Expr::Bool(false)
-            }
-            Tok::Khali => {
-                self.pos += 1;
-                Expr::Null
-            }
-            Tok::Str => {
-                self.pos += 1;
-                Expr::Str(tok.text().into())
-            }
-            Tok::LBracket => {
-                self.eat(Tok::LBracket)?;
-                let mut items = Vec::new();
-                if self.ty() != Tok::RBracket {
-                    items.push(self.parse_expression()?);
-                    while self.ty() == Tok::Comma {
-                        self.eat(Tok::Comma)?;
-                        items.push(self.parse_expression()?);
-                    }
-                }
-                self.eat(Tok::RBracket)?;
-                Expr::List(items)
-            }
-            Tok::LBrace => {
-                self.eat(Tok::LBrace)?;
-                let mut entries = Vec::new();
-                if self.ty() != Tok::RBrace {
-                    loop {
-                        let k = self.parse_expression()?;
-                        self.eat(Tok::Colon)?;
-                        let v = self.parse_expression()?;
-                        entries.push((k, v));
+                    while self.ty() != Tok::RParen {
+                        args.push(self.expression()?);
                         if self.ty() != Tok::Comma {
                             break;
                         }
-                        self.eat(Tok::Comma)?;
+                        self.bump();
                     }
+                    self.eat(Tok::RParen)?;
+                    e = expr(ExprKind::Call(Box::new(e), args), pos);
+                }
+                Tok::LBracket => {
+                    let pos = self.bump().pos;
+                    let idx = self.expression()?;
+                    self.eat(Tok::RBracket)?;
+                    e = expr(ExprKind::Index(Box::new(e), Box::new(idx)), pos);
+                }
+                Tok::Dot => {
+                    let pos = self.bump().pos;
+                    let (attr, _) = self.ident()?;
+                    e = expr(ExprKind::Attr(Box::new(e), attr), pos);
+                }
+                // `Naam { field: value }` record construction
+                Tok::LBrace
+                    if matches!(&e.kind, ExprKind::Var(_))
+                        && (self.peek_ty(1) == Tok::RBrace
+                            || (self.peek_ty(1) == Tok::Ident && self.peek_ty(2) == Tok::Colon)) =>
+                {
+                    let ExprKind::Var(type_name) = e.kind else { unreachable!() };
+                    let pos = e.pos;
+                    self.bump();
+                    let mut fields = Vec::new();
+                    while self.ty() != Tok::RBrace {
+                        let (f, _) = self.ident()?;
+                        self.eat(Tok::Colon)?;
+                        fields.push((f, self.expression()?));
+                        if self.ty() != Tok::Comma {
+                            break;
+                        }
+                        self.bump();
+                    }
+                    self.eat(Tok::RBrace)?;
+                    e = expr(ExprKind::Dhacha { type_name, fields }, pos);
+                }
+                _ => return Ok(e),
+            }
+        }
+    }
+
+    fn primary(&mut self) -> PResult<Expr> {
+        let tok = self.bump();
+        let pos = tok.pos;
+        let kind = match tok.ty {
+            Tok::Ident => ExprKind::Var(tok.text().into()),
+            Tok::Number => match tok.value {
+                TokValue::Int(i) => ExprKind::Int(i),
+                TokValue::BigInt(b) => ExprKind::BigInt(Rc::new(b)),
+                TokValue::Float(f) => ExprKind::Float(f),
+                _ => unreachable!(),
+            },
+            Tok::Str => match tok.value {
+                TokValue::Interp(parts) => {
+                    let mut out = Vec::new();
+                    for p in parts {
+                        out.push(match p {
+                            RawPart::Lit(s) => Part::Lit(s.into()),
+                            RawPart::Code(code, cpos) => {
+                                let tokens = Lexer::at(&code, cpos).tokenize()?;
+                                let mut sub = Parser::new(tokens);
+                                let e = sub.expression()?;
+                                if sub.ty() != Tok::Eof {
+                                    return Err(sub.expected("'}'"));
+                                }
+                                Part::Expr(e)
+                            }
+                        });
+                    }
+                    ExprKind::Interp(out)
+                }
+                _ => ExprKind::Str(tok.text().into()),
+            },
+            Tok::SahiHaiBe => ExprKind::Bool(true),
+            Tok::Jhuth => ExprKind::Bool(false),
+            Tok::Khali => ExprKind::Null,
+            Tok::LBracket => {
+                let mut items = Vec::new();
+                while self.ty() != Tok::RBracket {
+                    items.push(self.expression()?);
+                    if self.ty() != Tok::Comma {
+                        break;
+                    }
+                    self.bump();
+                }
+                self.eat(Tok::RBracket)?;
+                ExprKind::List(items)
+            }
+            Tok::LBrace => {
+                let mut entries = Vec::new();
+                while self.ty() != Tok::RBrace {
+                    let k = self.expression()?;
+                    self.eat(Tok::Colon)?;
+                    let v = self.expression()?;
+                    entries.push((k, v));
+                    if self.ty() != Tok::Comma {
+                        break;
+                    }
+                    self.bump();
                 }
                 self.eat(Tok::RBrace)?;
-                Expr::Dict(entries)
+                ExprKind::Dict(entries)
             }
             Tok::LParen => {
-                self.eat(Tok::LParen)?;
-                let e = self.parse_expression()?;
+                let e = self.expression()?;
                 self.eat(Tok::RParen)?;
-                e
+                return Ok(e);
             }
             Tok::Kaam => {
-                self.eat(Tok::Kaam)?;
-                self.eat(Tok::LParen)?;
-                let mut params = Vec::new();
-                if self.ty() != Tok::RParen {
-                    params = self.parse_param_list()?;
-                }
-                self.eat(Tok::RParen)?;
-                let body = self.parse_block()?;
-                Expr::Func(Rc::new(FuncDef { name: None, params, body }))
+                let params = self.params()?;
+                let body = self.block()?;
+                ExprKind::Func(Rc::new(FuncDef { name: None, method_of: None, params, body, pos }))
             }
-            _ => {
-                return Err(perr(format!(
-                    "Unexpected token '{}' at line {}, col {}",
-                    tok.ty.name(),
-                    tok.line,
-                    tok.column
-                )))
+            other => {
+                self.i -= 1;
+                let what = match other {
+                    Tok::Eof => "Program adhoora reh gaya: yahan koi value ya expression chahiye tha.".to_string(),
+                    _ => format!(
+                        "'{}' yahan samajh nahi aaya. Yahan koi value ya expression chahiye tha.",
+                        other.describe()
+                    ),
+                };
+                return Err(AdarshError::syntax(what, pos));
             }
         };
-        Ok(node)
+        Ok(expr(kind, pos))
     }
 
-    fn parse_dhacha_construction(&mut self, type_name: Rc<str>) -> PResult<Expr> {
-        self.eat(Tok::LBrace)?;
-        let mut fields = Vec::new();
-        if self.ty() != Tok::RBrace {
-            loop {
-                let name = self.eat_ident()?;
-                self.eat(Tok::Colon)?;
-                let e = self.parse_expression()?;
-                fields.push((name, e));
-                if self.ty() != Tok::Comma {
-                    break;
-                }
-                self.eat(Tok::Comma)?;
-            }
-        }
-        self.eat(Tok::RBrace)?;
-        Ok(Expr::Dhacha { type_name, fields })
-    }
-
-    fn parse_agar(&mut self) -> PResult<Node> {
-        self.eat(Tok::Agar)?;
+    fn agar(&mut self) -> PResult<Node> {
+        let pos = self.eat(Tok::Agar)?.pos;
         self.eat(Tok::LParen)?;
-        let cond = self.parse_expression()?;
+        let cond = self.expression()?;
         self.eat(Tok::RParen)?;
-        let then = self.parse_block()?;
+        let then = self.block()?;
         let mut otherwise = None;
         if self.ty() == Tok::Warna {
-            self.eat(Tok::Warna)?;
+            let wpos = self.bump().pos;
             otherwise = Some(Box::new(if self.ty() == Tok::Agar {
-                self.parse_agar()?
+                self.agar()?
             } else {
-                Node::Block(self.parse_block()?)
+                node(NodeKind::Block(self.block()?), wpos)
             }));
         }
-        Ok(Node::If { cond, then, otherwise })
+        Ok(node(NodeKind::If { cond, then, otherwise }, pos))
     }
 
-    fn parse_ginnati(&mut self) -> PResult<Node> {
+    fn ginnati(&mut self) -> PResult<NodeKind> {
         self.eat(Tok::Ginnati)?;
         self.eat(Tok::LParen)?;
         let mut init = None;
         if self.ty() != Tok::Semi {
-            if self.ty() == Tok::Badlo {
-                init = Some(Box::new(self.parse_badlo()?));
-            } else {
-                init = Some(Box::new(Node::Expr(self.parse_assignment_expression()?)));
-                self.eat(Tok::Semi)?;
-            }
-        } else {
-            self.eat(Tok::Semi)?;
+            let ipos = self.pos();
+            let kind = if self.ty() == Tok::Badlo { self.badlo()? } else { NodeKind::Expr(self.assignment()?) };
+            init = Some(Box::new(node(kind, ipos)));
         }
-        let mut cond = None;
-        if self.ty() != Tok::Semi {
-            cond = Some(self.parse_expression()?);
-        }
-        self.eat(Tok::Semi)?;
-        let mut update = None;
-        if self.ty() != Tok::RParen {
-            update = Some(self.parse_assignment_expression()?);
-        }
+        self.semi()?;
+        let cond = if self.ty() != Tok::Semi { Some(self.expression()?) } else { None };
+        self.semi()?;
+        let update = if self.ty() != Tok::RParen { Some(self.assignment()?) } else { None };
         self.eat(Tok::RParen)?;
-        let body = self.parse_block()?;
-        Ok(Node::For { init, cond, update, body })
+        Ok(NodeKind::For { init, cond, update, body: self.block()? })
     }
 
-    fn parse_ke_liye(&mut self) -> PResult<Node> {
+    fn ke_liye(&mut self) -> PResult<NodeKind> {
         self.eat(Tok::KeLiye)?;
         self.eat(Tok::LParen)?;
-        let mut declare = false;
-        if self.ty() == Tok::Badlo {
-            self.eat(Tok::Badlo)?;
-            declare = true;
-        }
-        let var = self.eat_ident()?;
-        if self.ty() == Tok::In {
-            self.eat(Tok::In)?;
+        let declare = if self.ty() == Tok::Badlo {
+            self.bump();
+            true
         } else {
-            self.eat(Tok::Colon)?;
+            false
+        };
+        let (var, _) = self.ident()?;
+        if self.ty() == Tok::In || self.ty() == Tok::Colon {
+            self.bump();
+        } else {
+            return Err(self.expected("'in'"));
         }
-        let iterable = self.parse_expression()?;
+        let iterable = self.expression()?;
         self.eat(Tok::RParen)?;
-        let body = self.parse_block()?;
-        Ok(Node::ForEach { var, declare, iterable, body })
+        Ok(NodeKind::ForEach { var, declare, iterable, body: self.block()? })
     }
 
-    fn parse_chuno(&mut self) -> PResult<Node> {
+    fn chuno(&mut self) -> PResult<NodeKind> {
         self.eat(Tok::Chuno)?;
         self.eat(Tok::LParen)?;
-        let subject = self.parse_expression()?;
+        let subject = self.expression()?;
         self.eat(Tok::RParen)?;
         self.eat(Tok::LBrace)?;
         let mut cases = Vec::new();
@@ -553,55 +613,43 @@ impl Parser {
         loop {
             match self.ty() {
                 Tok::Case => {
-                    self.eat(Tok::Case)?;
-                    let mut matches = vec![self.parse_expression()?];
+                    self.bump();
+                    let mut matches = vec![self.expression()?];
                     while self.ty() == Tok::Comma {
-                        self.eat(Tok::Comma)?;
-                        matches.push(self.parse_expression()?);
+                        self.bump();
+                        matches.push(self.expression()?);
                     }
                     self.eat(Tok::Colon)?;
-                    let body = self.parse_case_body()?;
-                    cases.push(SwitchCase { matches, body });
+                    cases.push(SwitchCase { matches, body: self.case_body()? });
                 }
                 Tok::WarnaCase => {
-                    self.eat(Tok::WarnaCase)?;
+                    self.bump();
                     self.eat(Tok::Colon)?;
-                    default = Some(self.parse_case_body()?);
-                    break;
+                    default = Some(self.case_body()?);
                 }
-                _ => break,
+                Tok::RBrace => break,
+                _ => return Err(self.expected("'case', 'warna_case' ya '}'")),
             }
         }
         self.eat(Tok::RBrace)?;
-        Ok(Node::Switch { subject, cases, default })
+        Ok(NodeKind::Switch { subject, cases, default })
     }
 
-    fn parse_case_body(&mut self) -> PResult<Vec<Node>> {
+    /// A braced block, or statements up to the next `case` / `warna_case` / `}`.
+    fn case_body(&mut self) -> PResult<Vec<Node>> {
         if self.ty() == Tok::LBrace {
-            return self.parse_block();
+            return self.block();
         }
-        Ok(vec![self.parse_statement()?])
-    }
-
-    fn parse_dhacha_def(&mut self) -> PResult<Node> {
-        self.eat(Tok::Dhacha)?;
-        let name = self.eat_ident()?;
-        self.eat(Tok::LBrace)?;
-        let mut fields = Vec::new();
-        if self.ty() != Tok::RBrace {
-            fields.push(self.eat_ident()?);
-            while self.ty() == Tok::Comma {
-                self.eat(Tok::Comma)?;
-                fields.push(self.eat_ident()?);
-            }
+        let mut stmts = Vec::new();
+        while !matches!(self.ty(), Tok::Case | Tok::WarnaCase | Tok::RBrace | Tok::Eof) {
+            stmts.push(self.statement()?);
         }
-        self.eat(Tok::RBrace)?;
-        self.eat(Tok::Semi)?;
-        Ok(Node::DhachaDef(name, Rc::new(fields)))
+        Ok(stmts)
     }
 }
 
-pub fn parse(source: &str) -> Result<Vec<Node>, AdarshError> {
-    let tokens = crate::lexer::Lexer::new(source).tokenize()?;
+/// Lex and parse a whole program. `file` is the id from [`crate::error::register_source`].
+pub fn parse(source: &str, file: u32) -> Result<Vec<Node>, AdarshError> {
+    let tokens = Lexer::new(source, file).tokenize()?;
     Parser::new(tokens).parse_program()
 }

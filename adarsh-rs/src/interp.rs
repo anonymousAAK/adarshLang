@@ -1,8 +1,8 @@
-//! Tree-walking interpreter (port of `AdarshInterpreter` in `adarsh_lang/runtime.py`).
+//! Tree-walking interpreter.
 
 use crate::ast::*;
-use crate::builtins::{is_iterable, normalize_index, resolve, BUILTINS};
-use crate::error::{AdarshError, HostKind};
+use crate::builtins::{is_iterable, normalize_index, out_of_range, resolve, BUILTINS};
+use crate::error::{AdarshError, ErrorKind};
 use crate::loader::{module_path, ModuleLoader};
 use crate::semantics::{root_scope, Analyzer, Signature};
 use crate::value::*;
@@ -14,7 +14,7 @@ use std::rc::Rc;
 
 // ------------------------------------------------------------ fast hasher for scopes
 
-/// FxHash: much faster than SipHash for the short identifier keys we use.
+/// FxHash: much faster than SipHash for short identifier keys.
 #[derive(Default)]
 pub struct FxHasher(u64);
 
@@ -47,29 +47,25 @@ pub fn new_scope(parent: Option<&ScopeRef>) -> ScopeRef {
 }
 
 fn undeclared(name: &str) -> AdarshError {
-    AdarshError::semantic(format!("Variable '{name}' not declared in AdarshLang scope."))
+    AdarshError::runtime(crate::semantics::undeclared_message(name))
 }
 
-/// `declare_variable`: creates the slot (as khali) only if it doesn't exist yet.
-fn declare(scope: &ScopeRef, name: &Rc<str>) {
-    scope.borrow_mut().vars.entry(name.clone()).or_insert(Value::Null);
+fn define(scope: &ScopeRef, name: &Rc<str>, value: Value) {
+    scope.borrow_mut().vars.insert(name.clone(), value);
 }
 
 fn get_var(scope: &ScopeRef, name: &str) -> Result<Value, AdarshError> {
-    let mut cur = scope.clone();
-    loop {
-        let next = {
-            let s = cur.borrow();
-            if let Some(v) = s.vars.get(name) {
-                return Ok(v.clone());
-            }
-            s.parent.clone()
-        };
-        match next {
-            Some(p) => cur = p,
-            None => return Err(undeclared(name)),
-        }
+    if let Some(v) = scope.borrow().vars.get(name) {
+        return Ok(v.clone());
     }
+    let mut cur = scope.borrow().parent.clone();
+    while let Some(s) = cur {
+        if let Some(v) = s.borrow().vars.get(name) {
+            return Ok(v.clone());
+        }
+        cur = s.borrow().parent.clone();
+    }
+    Err(undeclared(name))
 }
 
 fn set_var(scope: &ScopeRef, name: &str, value: Value) -> Result<(), AdarshError> {
@@ -115,12 +111,8 @@ pub enum Flow {
 type Exec = Result<Flow, AdarshError>;
 type Eval = Result<Value, AdarshError>;
 
-fn rt(msg: &str) -> AdarshError {
+fn rt(msg: impl Into<String>) -> AdarshError {
     AdarshError::runtime(msg)
-}
-
-fn is_type_like(e: &AdarshError) -> bool {
-    matches!(e, AdarshError::Host(HostKind::TypeError | HostKind::KeyError | HostKind::IndexError, _))
 }
 
 // ------------------------------------------------------------ interpreter
@@ -130,8 +122,12 @@ pub struct Interpreter {
     loaded_modules: HashSet<String>,
     loader: Rc<dyn ModuleLoader>,
     out: Box<dyn Write>,
+    /// Source of lines for `padho()`; `None` means end of input.
+    pub input: Box<dyn FnMut() -> Option<String>>,
+    /// Methods declared with `kaam Type.name(...)`, by type then method name.
+    methods: FxMap<Rc<str>, FxMap<Rc<str>, Rc<Closure>>>,
     depth: usize,
-    /// Maximum nesting of AdarshLang function calls before a RecursionError.
+    /// Maximum nesting of function calls before a recursion error.
     pub max_depth: usize,
     rng: u64,
     pub clock: fn() -> f64,
@@ -140,10 +136,7 @@ pub struct Interpreter {
 fn system_clock() -> f64 {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs_f64())
-            .unwrap_or(0.0)
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
     }
     #[cfg(target_arch = "wasm32")]
     {
@@ -166,8 +159,11 @@ impl Interpreter {
             loaded_modules: HashSet::new(),
             loader,
             out,
+            input: Box::new(|| None),
+            methods: FxMap::default(),
             depth: 0,
-            max_depth: 10_000,
+            // browsers give WebAssembly a much smaller native stack than the CLI thread
+            max_depth: if cfg!(target_arch = "wasm32") { 300 } else { 10_000 },
             rng: seed | 1,
             clock: system_clock,
         }
@@ -191,17 +187,16 @@ impl Interpreter {
         let _ = self.out.flush();
     }
 
-    /// Run a whole program in the global scope (Python `interpret`).
+    pub fn write_str(&mut self, s: &str) {
+        let _ = self.out.write_all(s.as_bytes());
+    }
+
+    /// Run a program in the global scope.
     pub fn run(&mut self, program: &[Node]) -> Exec {
         let g = self.global.clone();
         let r = self.exec_block(program, &g);
         self.flush();
         r
-    }
-
-    fn print_line(&mut self, s: &str) {
-        let _ = self.out.write_all(s.as_bytes());
-        let _ = self.out.write_all(b"\n");
     }
 
     pub fn exec_block(&mut self, nodes: &[Node], scope: &ScopeRef) -> Exec {
@@ -216,62 +211,67 @@ impl Interpreter {
     }
 
     fn exec(&mut self, node: &Node, scope: &ScopeRef) -> Exec {
-        match node {
-            Node::Expr(e) => Ok(Flow::Normal(self.eval(e, scope)?)),
-            Node::Badlo(name, init) => {
-                declare(scope, name);
-                let mut v = Value::Null;
-                if let Some(e) = init {
-                    v = self.eval(e, scope)?;
-                    set_var(scope, name, v.clone())?;
-                }
-                Ok(Flow::Normal(v))
-            }
-            Node::Dikhao(e) => {
-                let v = self.eval(e, scope)?;
-                let s = display(&v);
-                self.print_line(&s);
+        self.exec_kind(node, scope).map_err(|e| e.at(node.pos))
+    }
+
+    /// Run a loop body; `None` means keep looping.
+    fn loop_body(&mut self, body: &[Node], scope: &ScopeRef) -> Result<Option<Flow>, AdarshError> {
+        Ok(match self.exec_block(body, &new_scope(Some(scope)))? {
+            Flow::Return(v) => Some(Flow::Return(v)),
+            Flow::Break => Some(Flow::Normal(Value::Null)),
+            Flow::Continue | Flow::Normal(_) => None,
+        })
+    }
+
+    fn exec_kind(&mut self, node: &Node, scope: &ScopeRef) -> Exec {
+        match &node.kind {
+            NodeKind::Expr(e) => Ok(Flow::Normal(self.eval(e, scope)?)),
+            NodeKind::Badlo(name, init) => {
+                let v = match init {
+                    Some(e) => self.eval(e, scope)?,
+                    None => Value::Null,
+                };
+                define(scope, name, v);
                 Ok(Flow::Normal(Value::Null))
             }
-            Node::Break => Ok(Flow::Break),
-            Node::Continue => Ok(Flow::Continue),
-            Node::Wapas(e) => {
+            NodeKind::Dikhao(e) => {
+                let v = self.eval(e, scope)?;
+                let mut s = display(&v);
+                s.push('\n');
+                self.write_str(&s);
+                Ok(Flow::Normal(Value::Null))
+            }
+            NodeKind::Break => Ok(Flow::Break),
+            NodeKind::Continue => Ok(Flow::Continue),
+            NodeKind::Wapas(e) => {
                 let v = match e {
                     Some(e) => self.eval(e, scope)?,
                     None => Value::Null,
                 };
                 Ok(Flow::Return(v))
             }
-            Node::Block(b) => self.exec_block(b, scope),
-            Node::If { cond, then, otherwise } => {
+            NodeKind::Block(b) => self.exec_block(b, &new_scope(Some(scope))),
+            NodeKind::If { cond, then, otherwise } => {
                 if self.eval(cond, scope)?.truthy() {
                     self.exec_block(then, &new_scope(Some(scope)))
                 } else if let Some(o) = otherwise {
-                    self.exec(o, &new_scope(Some(scope)))
+                    self.exec(o, scope)
                 } else {
                     Ok(Flow::Normal(Value::Null))
                 }
             }
-            Node::While { cond, body } => {
-                let mut result = Value::Null;
+            NodeKind::While { cond, body } => {
                 while self.eval(cond, scope)?.truthy() {
-                    match self.exec_block(body, &new_scope(Some(scope)))? {
-                        Flow::Return(v) => return Ok(Flow::Return(v)),
-                        Flow::Break => return Ok(Flow::Normal(Value::Null)),
-                        // Python leaked a ContinueSignal out of the loop here when the last
-                        // iteration ended with `aage_badho`, silently skipping later statements.
-                        Flow::Continue => result = Value::Null,
-                        Flow::Normal(v) => result = v,
+                    if let Some(f) = self.loop_body(body, scope)? {
+                        return Ok(f);
                     }
                 }
-                Ok(Flow::Normal(result))
+                Ok(Flow::Normal(Value::Null))
             }
-            Node::For { init, cond, update, body } => {
+            NodeKind::For { init, cond, update, body } => {
                 let ls = new_scope(Some(scope));
                 if let Some(i) = init {
-                    if let Flow::Return(v) = self.exec(i, &ls)? {
-                        return Ok(Flow::Return(v));
-                    }
+                    self.exec(i, &ls)?;
                 }
                 loop {
                     if let Some(c) = cond {
@@ -279,10 +279,8 @@ impl Interpreter {
                             break;
                         }
                     }
-                    match self.exec_block(body, &new_scope(Some(&ls)))? {
-                        Flow::Return(v) => return Ok(Flow::Return(v)),
-                        Flow::Break => return Ok(Flow::Normal(Value::Null)),
-                        _ => {}
+                    if let Some(f) = self.loop_body(body, &ls)? {
+                        return Ok(f);
                     }
                     if let Some(u) = update {
                         self.eval(u, &ls)?;
@@ -290,102 +288,39 @@ impl Interpreter {
                 }
                 Ok(Flow::Normal(Value::Null))
             }
-            Node::ForEach { var, declare: decl, iterable, body } => {
-                let it = self.eval(iterable, scope)?;
-                if !is_iterable(&it) {
-                    return Err(rt("'ke_liye' expects an iterable expression in AdarshLang."));
-                }
-                let ls = new_scope(Some(scope));
-                if *decl {
-                    declare(&ls, var);
-                }
-                // strings and dicts iterate a snapshot, lists are read live like Python
-                let snapshot = match &it {
-                    Value::List(_) => None,
-                    other => crate::builtins::iter_items(other),
-                };
-                let mut result = Value::Null;
-                let mut i = 0usize;
-                loop {
-                    let item = match &snapshot {
-                        Some(items) => items.get(i).cloned(),
-                        None => self.nth_item(&it, i),
-                    };
-                    let Some(item) = item else { break };
-                    i += 1;
-                    if *decl {
-                        set_var(&ls, var, item)?;
-                    } else {
-                        set_var(scope, var, item)?;
-                    }
-                    match self.exec_block(body, &new_scope(Some(&ls)))? {
-                        Flow::Return(v) => return Ok(Flow::Return(v)),
-                        Flow::Break => return Ok(Flow::Normal(Value::Null)),
-                        Flow::Continue => continue,
-                        Flow::Normal(v) => result = v,
-                    }
-                }
-                Ok(Flow::Normal(result))
+            NodeKind::ForEach { var, declare, iterable, body } => {
+                self.exec_foreach(var, declare, iterable, body, scope)
             }
-            Node::Switch { subject, cases, default } => {
-                let sv = self.eval(subject, scope)?;
-                for c in cases {
-                    for m in &c.matches {
-                        let mv = self.eval(m, scope)?;
-                        if py_eq(&mv, &sv) {
-                            return self.exec_block(&c.body, &new_scope(Some(scope)));
-                        }
+            NodeKind::Switch { subject, cases, default } => self.exec_switch(subject, cases, default, scope),
+            NodeKind::TryCatch { body, err_name, handler } => {
+                let depth = self.depth;
+                match self.exec_block(body, &new_scope(Some(scope))) {
+                    Err(e) if e.kind != ErrorKind::Syntax && e.kind != ErrorKind::Semantic => {
+                        self.depth = depth;
+                        let cs = new_scope(Some(scope));
+                        define(&cs, err_name, e.catch_value());
+                        self.exec_block(handler, &cs)
                     }
-                }
-                match default {
-                    Some(d) => self.exec_block(d, &new_scope(Some(scope))),
-                    None => Ok(Flow::Normal(Value::Null)),
-                }
-            }
-            Node::TryCatch { body, err_name, handler } => match self.exec_block(body, &new_scope(Some(scope))) {
-                Err(AdarshError::User(v)) => {
-                    let cs = new_scope(Some(scope));
-                    declare(&cs, err_name);
-                    set_var(&cs, err_name, v)?;
-                    self.exec_block(handler, &cs)
-                }
-                other => other,
-            },
-            Node::Throw(e) => {
-                let v = self.eval(e, scope)?;
-                Err(AdarshError::User(v))
-            }
-            Node::Import(e) => {
-                let mv = self.eval(e, scope)?;
-                let Value::Str(name) = mv else {
-                    return Err(rt("'lao' expects a string path in AdarshLang."));
-                };
-                let path = module_path(&name);
-                if self.loaded_modules.contains(&path) {
-                    return Ok(Flow::Normal(Value::Null));
-                }
-                let Some(src) = self.loader.load(&path) else {
-                    return Err(AdarshError::runtime(format!("Module '{path}' not found for 'lao' in AdarshLang.")));
-                };
-                self.loaded_modules.insert(path);
-                let module = crate::parser::parse(&src)?;
-                let mut sema = Analyzer::new(self.loader.clone());
-                sema.analyze_program(&module, &root_scope()).map_err(|e| match e {
-                    AdarshError::Semantic(m) => AdarshError::Runtime(m),
                     other => other,
-                })?;
-                let g = self.global.clone();
-                self.exec_block(&module, &g)?;
+                }
+            }
+            NodeKind::Throw(e) => {
+                let v = self.eval(e, scope)?;
+                Err(AdarshError::thrown(v).at(e.pos))
+            }
+            NodeKind::Import(e) => self.exec_import(e, scope),
+            NodeKind::KaamDef(def) => {
+                let closure = Rc::new(Closure { def: def.clone(), scope: scope.clone() });
+                let name = def.name.clone().expect("named function");
+                match &def.method_of {
+                    Some(t) => {
+                        self.methods.entry(t.clone()).or_default().insert(name, closure);
+                    }
+                    None => define(scope, &name, Value::Func(closure)),
+                }
                 Ok(Flow::Normal(Value::Null))
             }
-            Node::KaamDef(def) => {
-                let f = Value::Func(Rc::new(Closure { def: def.clone(), scope: scope.clone() }));
-                let name = def.name.clone().expect("named function");
-                declare(scope, &name);
-                set_var(scope, &name, f.clone())?;
-                Ok(Flow::Normal(f))
-            }
-            Node::DhachaDef(name, fields) => {
+            NodeKind::DhachaDef(name, fields) => {
                 scope.borrow_mut().types.insert(name.clone(), fields.clone());
                 Ok(Flow::Normal(Value::Null))
             }
@@ -393,180 +328,95 @@ impl Interpreter {
     }
 
     pub fn eval(&mut self, e: &Expr, scope: &ScopeRef) -> Eval {
-        match e {
-            Expr::Int(i) => Ok(Value::Int(*i)),
-            Expr::BigInt(b) => Ok(Value::Big(b.clone())),
-            Expr::Float(f) => Ok(Value::Float(*f)),
-            Expr::Str(s) => Ok(Value::Str(s.clone())),
-            Expr::Bool(b) => Ok(Value::Bool(*b)),
-            Expr::Null => Ok(Value::Null),
-            Expr::Var(name) => get_var(scope, name),
-            Expr::List(items) => {
+        self.eval_kind(e, scope).map_err(|err| err.at(e.pos))
+    }
+
+    fn eval_kind(&mut self, e: &Expr, scope: &ScopeRef) -> Eval {
+        match &e.kind {
+            ExprKind::Int(i) => Ok(Value::Int(*i)),
+            ExprKind::BigInt(b) => Ok(Value::Big(b.clone())),
+            ExprKind::Float(f) => Ok(Value::Float(*f)),
+            ExprKind::Str(s) => Ok(Value::Str(s.clone())),
+            ExprKind::Interp(parts) => self.eval_interp(parts, scope),
+            ExprKind::Bool(b) => Ok(Value::Bool(*b)),
+            ExprKind::Null => Ok(Value::Null),
+            ExprKind::Var(name) => get_var(scope, name),
+            ExprKind::List(items) => {
                 let mut v = Vec::with_capacity(items.len());
                 for i in items {
                     v.push(self.eval(i, scope)?);
                 }
                 Ok(Value::list(v))
             }
-            Expr::Dict(entries) => {
-                let mut d = Dict::new();
-                for (k, v) in entries {
-                    let k = self.eval(k, scope)?;
-                    let v = self.eval(v, scope)?;
-                    d.insert(k, v)?;
-                }
-                Ok(Value::dict(d))
-            }
-            Expr::Dhacha { type_name, fields } => {
-                let Some(declared) = get_type(scope, type_name) else {
-                    return Err(AdarshError::runtime(format!(
-                        "Dhacha '{type_name}' not declared before use in AdarshLang."
-                    )));
-                };
-                let mut d = Dict::new();
-                for f in declared.iter() {
-                    d.insert_str(f, Value::Null);
-                }
-                for (name, fe) in fields {
-                    let v = self.eval(fe, scope)?;
-                    d.insert_str(name, v);
-                }
-                d.insert_str("__type__", Value::Str(type_name.clone()));
-                Ok(Value::dict(d))
-            }
-            Expr::Binary(l, op, r) => {
+            ExprKind::Dict(entries) => self.eval_dict(entries, scope),
+            ExprKind::Dhacha { type_name, fields } => self.eval_record(type_name, fields, scope),
+            ExprKind::Binary(l, op, r) => {
                 let a = self.eval(l, scope)?;
+                match op {
+                    // short-circuit: the right side runs only when needed
+                    BinOp::And => {
+                        if !a.truthy() {
+                            return Ok(Value::Bool(false));
+                        }
+                        return Ok(Value::Bool(self.eval(r, scope)?.truthy()));
+                    }
+                    BinOp::Or => {
+                        if a.truthy() {
+                            return Ok(Value::Bool(true));
+                        }
+                        return Ok(Value::Bool(self.eval(r, scope)?.truthy()));
+                    }
+                    _ => {}
+                }
                 let b = self.eval(r, scope)?;
                 match op {
-                    BinOp::Eq => Ok(Value::Bool(py_eq(&a, &b))),
-                    BinOp::Neq => Ok(Value::Bool(!py_eq(&a, &b))),
+                    BinOp::Eq => Ok(Value::Bool(values_eq(&a, &b))),
+                    BinOp::Neq => Ok(Value::Bool(!values_eq(&a, &b))),
                     BinOp::Lt | BinOp::Gt | BinOp::Lte | BinOp::Gte => Ok(Value::Bool(compare(*op, &a, &b)?)),
-                    // Python evaluated both operands (no short-circuit) and returned a bool.
-                    BinOp::And => Ok(Value::Bool(a.truthy() && b.truthy())),
-                    BinOp::Or => Ok(Value::Bool(a.truthy() || b.truthy())),
                     _ => arith(*op, &a, &b),
                 }
             }
-            Expr::Unary(op, x) => {
+            ExprKind::Unary(op, x) => {
                 let v = self.eval(x, scope)?;
                 match op {
                     UnOp::Neg => negate(&v),
                     UnOp::Not => Ok(Value::Bool(!v.truthy())),
                 }
             }
-            Expr::Assign(name, rhs) => {
+            ExprKind::Assign(name, rhs) => {
                 let v = self.eval(rhs, scope)?;
                 set_var(scope, name, v.clone())?;
                 Ok(v)
             }
-            Expr::CompoundAssign(name, op, rhs) => {
+            ExprKind::CompoundAssign(name, op, rhs) => {
                 let cur = get_var(scope, name)?;
                 let r = self.eval(rhs, scope)?;
                 let v = arith(*op, &cur, &r)?;
                 set_var(scope, name, v.clone())?;
                 Ok(v)
             }
-            Expr::Index(c, i) => {
+            ExprKind::Index(c, i) => {
                 let coll = self.eval(c, scope)?;
                 let idx = self.eval(i, scope)?;
                 self.index(&coll, &idx)
             }
-            Expr::IndexAssign(c, i, v) => {
-                let coll = self.eval(c, scope)?;
-                let idx = self.eval(i, scope)?;
-                let val = self.eval(v, scope)?;
-                let mutable_err = || rt("Only mutable collections like lists or dicts support indexed assignment in AdarshLang.");
-                match &coll {
-                    Value::Dict(d) => d.borrow_mut().insert(idx, val.clone()).map_err(|_| mutable_err())?,
-                    _ => {
-                        let n = normalize_index(&idx)?;
-                        let Value::List(l) = &coll else { return Err(mutable_err()) };
-                        let mut list = l.borrow_mut();
-                        let Some(k) = resolve(n, list.len()) else {
-                            return Err(rt("Index out of range while assigning into collection in AdarshLang."));
-                        };
-                        list[k] = val.clone();
-                    }
-                }
-                Ok(val)
-            }
-            Expr::IndexCompoundAssign(c, i, op, v) => {
-                let coll = self.eval(c, scope)?;
-                let idx = self.eval(i, scope)?;
-                let right = self.eval(v, scope)?;
-                let fail = || rt("Compound assignment failed on collection in AdarshLang.");
-                let wrap = |e: AdarshError| if is_type_like(&e) { fail() } else { e };
-                match &coll {
-                    Value::Dict(d) => {
-                        let cur = d.borrow().get(&idx).map_err(wrap)?.ok_or_else(fail)?;
-                        let nv = arith(*op, &cur, &right).map_err(wrap)?;
-                        d.borrow_mut().insert(idx, nv.clone()).map_err(wrap)?;
-                        Ok(nv)
-                    }
-                    _ => {
-                        let n = normalize_index(&idx)?;
-                        match &coll {
-                            Value::List(l) => {
-                                let len = l.borrow().len();
-                                let k = resolve(n, len).ok_or_else(fail)?;
-                                let cur = l.borrow()[k].clone();
-                                let nv = arith(*op, &cur, &right).map_err(wrap)?;
-                                let mut list = l.borrow_mut();
-                                if k >= list.len() {
-                                    return Err(fail());
-                                }
-                                list[k] = nv.clone();
-                                Ok(nv)
-                            }
-                            Value::Str(s) => {
-                                // reading works, item assignment is a TypeError
-                                if resolve(n, s.chars().count()).is_none() {
-                                    return Err(fail());
-                                }
-                                Err(fail())
-                            }
-                            _ => Err(fail()),
-                        }
-                    }
-                }
-            }
-            Expr::Attr(t, attr) => {
+            ExprKind::IndexAssign(c, i, v) => self.eval_index_assign(c, i, v, scope),
+            ExprKind::IndexCompoundAssign(c, i, op, v) => self.eval_index_compound(c, i, op, v, scope),
+            ExprKind::Attr(t, attr) => {
                 let target = self.eval(t, scope)?;
-                let Value::Dict(d) = &target else {
-                    return Err(rt("Attribute access only supported on dhacha objects or dictionaries in AdarshLang."));
-                };
-                let found = d.borrow().get_str(attr);
-                found.ok_or_else(|| AdarshError::runtime(format!("Attribute '{attr}' missing on object in AdarshLang.")))
+                self.attr(&target, attr)
             }
-            Expr::AttrAssign(t, attr, v) => {
-                let target = self.eval(t, scope)?;
-                let val = self.eval(v, scope)?;
-                let Value::Dict(d) = &target else {
-                    return Err(rt(
-                        "Attribute assignment only supported on dhacha objects or dictionaries in AdarshLang.",
-                    ));
-                };
-                d.borrow_mut().insert_str(attr, val.clone());
-                Ok(val)
-            }
-            Expr::AttrCompoundAssign(t, attr, op, v) => {
-                let target = self.eval(t, scope)?;
-                let right = self.eval(v, scope)?;
-                let Value::Dict(d) = &target else {
-                    return Err(rt(
-                        "Attribute compound assignment only supported on dhacha objects or dictionaries in AdarshLang.",
-                    ));
-                };
-                let cur = d.borrow().get_str(attr).unwrap_or(Value::Null);
-                let nv = arith(*op, &cur, &right)?;
-                d.borrow_mut().insert_str(attr, nv.clone());
-                Ok(nv)
-            }
-            Expr::Func(def) => Ok(Value::Func(Rc::new(Closure { def: def.clone(), scope: scope.clone() }))),
-            Expr::Call(callee, args) => {
+            ExprKind::AttrAssign(t, attr, v) => self.eval_attr_assign(t, attr, v, scope),
+            ExprKind::AttrCompoundAssign(t, attr, op, v) => self.eval_attr_compound(t, attr, op, v, scope),
+            ExprKind::Func(def) => Ok(Value::Func(Rc::new(Closure { def: def.clone(), scope: scope.clone() }))),
+            ExprKind::Call(callee, args) => {
                 let f = self.eval(callee, scope)?;
                 if !f.is_callable() {
-                    return Err(rt("Attempted to call a non-callable value in AdarshLang."));
+                    let what = match &callee.kind {
+                        ExprKind::Var(n) => format!("'{n}' ({})", f.type_desc()),
+                        _ => f.type_desc(),
+                    };
+                    return Err(rt(format!("{what} function nahi hai, isliye call nahi kar sakte.")));
                 }
                 let mut vals = Vec::with_capacity(args.len());
                 for a in args {
@@ -577,29 +427,231 @@ impl Interpreter {
         }
     }
 
-    fn index(&mut self, coll: &Value, idx: &Value) -> Eval {
-        let not_indexable = || rt("Only indexable values like lists, strings, or dicts support indexing in AdarshLang.");
-        if let Value::Dict(d) = coll {
-            return match d.borrow().get(idx) {
-                Ok(Some(v)) => Ok(v),
-                Ok(None) => Err(rt("Key not present during dictionary access in AdarshLang.")),
-                Err(_) => Err(not_indexable()),
-            };
+    #[inline(never)]
+    fn exec_foreach(
+        &mut self,
+        var: &Rc<str>,
+        declare: &bool,
+        iterable: &Expr,
+        body: &[Node],
+        scope: &ScopeRef,
+    ) -> Exec {
+        let it = self.eval(iterable, scope)?;
+        if !is_iterable(&it) {
+            return Err(rt(format!(
+                "'ke_liye' sirf list, string ya dict par chalta hai, {} par nahi.",
+                it.type_desc()
+            ))
+            .at(iterable.pos));
         }
-        let n = normalize_index(idx)?;
-        let out_of_range = || rt("Index out of range while accessing collection in AdarshLang.");
+        let ls = new_scope(Some(scope));
+        if *declare {
+            define(&ls, var, Value::Null);
+        }
+        // lists are read live; strings and dicts iterate a snapshot
+        let snapshot = match &it {
+            Value::List(_) => None,
+            other => crate::builtins::iter_items(other),
+        };
+        let mut i = 0usize;
+        loop {
+            let item = match &snapshot {
+                Some(items) => items.get(i).cloned(),
+                None => self.nth_item(&it, i),
+            };
+            let Some(item) = item else { break };
+            i += 1;
+            set_var(if *declare { &ls } else { scope }, var, item)?;
+            if let Some(f) = self.loop_body(body, &ls)? {
+                return Ok(f);
+            }
+        }
+        Ok(Flow::Normal(Value::Null))
+    }
+
+    #[inline(never)]
+    fn exec_switch(
+        &mut self,
+        subject: &Expr,
+        cases: &[SwitchCase],
+        default: &Option<Vec<Node>>,
+        scope: &ScopeRef,
+    ) -> Exec {
+        let sv = self.eval(subject, scope)?;
+        for c in cases {
+            for m in &c.matches {
+                if values_eq(&self.eval(m, scope)?, &sv) {
+                    return self.exec_block(&c.body, &new_scope(Some(scope)));
+                }
+            }
+        }
+        match default {
+            Some(d) => self.exec_block(d, &new_scope(Some(scope))),
+            None => Ok(Flow::Normal(Value::Null)),
+        }
+    }
+
+    #[inline(never)]
+    fn exec_import(&mut self, e: &Expr, scope: &ScopeRef) -> Exec {
+        let mv = self.eval(e, scope)?;
+        let Value::Str(name) = mv else {
+            return Err(rt("'lao' ko file ka naam (string) chahiye.").at(e.pos));
+        };
+        let path = module_path(&name);
+        if self.loaded_modules.contains(&path) {
+            return Ok(Flow::Normal(Value::Null));
+        }
+        let Some(src) = self.loader.load(&path) else {
+            return Err(rt(format!("Module '{path}' nahi mila.")).at(e.pos));
+        };
+        self.loaded_modules.insert(path.clone());
+        let file = crate::error::register_source(&path, &src);
+        let module = crate::parser::parse(&src, file)?;
+        let mut sema = Analyzer::new(self.loader.clone());
+        sema.analyze_program(&module, &root_scope())?;
+        let g = self.global.clone();
+        self.exec_block(&module, &g)?;
+        Ok(Flow::Normal(Value::Null))
+    }
+
+    #[inline(never)]
+    fn eval_interp(&mut self, parts: &[Part], scope: &ScopeRef) -> Eval {
+        let mut s = String::new();
+        for p in parts {
+            match p {
+                Part::Lit(l) => s.push_str(l),
+                Part::Expr(x) => s.push_str(&display(&self.eval(x, scope)?)),
+            }
+        }
+        Ok(Value::Str(s.into()))
+    }
+
+    #[inline(never)]
+    fn eval_dict(&mut self, entries: &[(Expr, Expr)], scope: &ScopeRef) -> Eval {
+        let mut d = Dict::new();
+        for (k, v) in entries {
+            let key = self.eval(k, scope)?;
+            let val = self.eval(v, scope)?;
+            d.insert(key, val).map_err(|e| e.at(k.pos))?;
+        }
+        Ok(Value::dict(d))
+    }
+
+    #[inline(never)]
+    fn eval_record(&mut self, type_name: &Rc<str>, fields: &[(Rc<str>, Expr)], scope: &ScopeRef) -> Eval {
+        let Some(declared) = get_type(scope, type_name) else {
+            return Err(rt(format!("'{type_name}' naam ka dhacha nahi mila.")));
+        };
+        let mut d = Dict::record(type_name.clone());
+        for f in declared.iter() {
+            d.insert_str(f, Value::Null);
+        }
+        for (name, fe) in fields {
+            let v = self.eval(fe, scope)?;
+            d.insert_str(name, v);
+        }
+        Ok(Value::dict(d))
+    }
+
+    #[inline(never)]
+    fn eval_index_assign(&mut self, c: &Expr, i: &Expr, v: &Expr, scope: &ScopeRef) -> Eval {
+        let coll = self.eval(c, scope)?;
+        let idx = self.eval(i, scope)?;
+        let val = self.eval(v, scope)?;
+        self.store_index(&coll, idx, val.clone())?;
+        Ok(val)
+    }
+
+    #[inline(never)]
+    fn eval_index_compound(&mut self, c: &Expr, i: &Expr, op: &BinOp, v: &Expr, scope: &ScopeRef) -> Eval {
+        let coll = self.eval(c, scope)?;
+        let idx = self.eval(i, scope)?;
+        let right = self.eval(v, scope)?;
+        let cur = self.index(&coll, &idx)?;
+        let nv = arith(*op, &cur, &right)?;
+        self.store_index(&coll, idx, nv.clone())?;
+        Ok(nv)
+    }
+
+    #[inline(never)]
+    fn eval_attr_assign(&mut self, t: &Expr, attr: &Rc<str>, v: &Expr, scope: &ScopeRef) -> Eval {
+        let target = self.eval(t, scope)?;
+        let val = self.eval(v, scope)?;
+        let Value::Dict(d) = &target else {
+            return Err(rt(format!("{} par '.{attr}' set nahi kar sakte.", target.type_desc())));
+        };
+        d.borrow_mut().insert_str(attr, val.clone());
+        Ok(val)
+    }
+
+    #[inline(never)]
+    fn eval_attr_compound(&mut self, t: &Expr, attr: &Rc<str>, op: &BinOp, v: &Expr, scope: &ScopeRef) -> Eval {
+        let target = self.eval(t, scope)?;
+        let right = self.eval(v, scope)?;
+        let cur = self.attr(&target, attr)?;
+        let nv = arith(*op, &cur, &right)?;
+        let Value::Dict(d) = &target else { unreachable!("attr() succeeded on a dict") };
+        d.borrow_mut().insert_str(attr, nv.clone());
+        Ok(nv)
+    }
+
+    fn attr(&mut self, target: &Value, attr: &str) -> Eval {
+        let Value::Dict(d) = target else {
+            return Err(rt(format!(
+                "{} par '.{attr}' nahi chalta. Sirf dict aur dhacha ke fields hote hain.",
+                target.type_desc()
+            )));
+        };
+        let d_ref = d.borrow();
+        if let Some(v) = d_ref.get_str(attr) {
+            return Ok(v);
+        }
+        if let Some(t) = &d_ref.type_name {
+            if let Some(m) = self.methods.get(t).and_then(|ms| ms.get(attr)) {
+                return Ok(Value::Method(Rc::new(BoundMethod { receiver: target.clone(), func: m.clone() })));
+            }
+            return Err(rt(format!("Dhacha {t} mein '{attr}' naam ka field ya method nahi hai.")));
+        }
+        Err(rt(format!("Dict mein '{attr}' key nahi hai.")))
+    }
+
+    fn index(&mut self, coll: &Value, idx: &Value) -> Eval {
         match coll {
+            Value::Dict(d) => match d.borrow().get(idx)? {
+                Some(v) => Ok(v),
+                None => Err(rt(format!("Key {} dict mein nahi hai.", repr(idx)))),
+            },
             Value::List(l) => {
+                let n = normalize_index(idx)?;
                 let list = l.borrow();
-                resolve(n, list.len()).map(|k| list[k].clone()).ok_or_else(out_of_range)
+                resolve(n, list.len()).map(|k| list[k].clone()).ok_or_else(|| out_of_range(idx, list.len(), "List"))
             }
             Value::Str(s) => {
+                let n = normalize_index(idx)?;
                 let len = s.chars().count();
                 resolve(n, len)
                     .map(|k| Value::Str(s.chars().nth(k).unwrap().to_string().into()))
-                    .ok_or_else(out_of_range)
+                    .ok_or_else(|| out_of_range(idx, len, "String"))
             }
-            _ => Err(not_indexable()),
+            other => Err(rt(format!("{} mein [index] nahi lagta.", other.type_desc()))),
+        }
+    }
+
+    fn store_index(&mut self, coll: &Value, idx: Value, val: Value) -> Result<(), AdarshError> {
+        match coll {
+            Value::Dict(d) => d.borrow_mut().insert(idx, val),
+            Value::List(l) => {
+                let n = normalize_index(&idx)?;
+                let mut list = l.borrow_mut();
+                let len = list.len();
+                let k = resolve(n, len).ok_or_else(|| out_of_range(&idx, len, "List"))?;
+                list[k] = val;
+                Ok(())
+            }
+            Value::Str(_) => {
+                Err(rt("String ke andar ka character badal nahi sakte. Nayi string banao (jaise replace() se)."))
+            }
+            other => Err(rt(format!("{} mein [index] se value nahi rakh sakte.", other.type_desc()))),
         }
     }
 
@@ -607,68 +659,48 @@ impl Interpreter {
     pub fn call(&mut self, f: &Value, args: Vec<Value>) -> Eval {
         match f {
             Value::Builtin(id) => self.call_builtin(*id, args),
-            Value::Func(c) => self.call_closure(c.clone(), args),
-            _ => Err(rt("Attempted to call a non-callable value in AdarshLang.")),
+            Value::Func(c) => self.call_closure(c.clone(), None, args),
+            Value::Method(m) => self.call_closure(m.func.clone(), Some(m.receiver.clone()), args),
+            other => Err(rt(format!("{} function nahi hai, isliye call nahi kar sakte.", other.type_desc()))),
         }
     }
 
-    fn call_closure(&mut self, c: Rc<Closure>, args: Vec<Value>) -> Eval {
+    fn call_closure(&mut self, c: Rc<Closure>, receiver: Option<Value>, args: Vec<Value>) -> Eval {
         let def = &c.def;
         let sig = Signature::from_params(&def.params);
         if !sig.allows(args.len()) {
-            return Err(AdarshError::runtime(format!(
-                "Function '{}' expected between {} and {} arguments in AdarshLang.",
-                def.name.as_deref().unwrap_or("<anonymous>"),
-                sig.min,
-                sig.max_text()
-            )));
+            return Err(rt(sig.arity_error(&def.display_name(), args.len())));
         }
         if self.depth >= self.max_depth {
-            return Err(AdarshError::Host(HostKind::RecursionError, "maximum recursion depth exceeded".into()));
-        }
-        // resolve arguments (defaults are evaluated in the closure scope, like Python)
-        let mut values = Vec::with_capacity(def.params.len());
-        let mut args = args.into_iter();
-        let mut leftover = false;
-        for p in &def.params {
-            if p.is_varargs {
-                values.push(Value::list(args.by_ref().collect()));
-                break;
-            }
-            match args.next() {
-                Some(a) => values.push(a),
-                None => match &p.default {
-                    Some(d) => values.push(self.eval(d, &c.scope)?),
-                    None => return Err(rt("Missing required argument in AdarshLang function call.")),
-                },
-            }
-        }
-        if args.next().is_some() {
-            leftover = true;
-        }
-        if leftover {
-            return Err(rt("Too many arguments provided in AdarshLang function call."));
+            return Err(rt(format!(
+                "Recursion bahut gehri ho gayi ({} calls). Shayad '{}' khud ko bina ruke call kar raha hai?",
+                self.max_depth,
+                def.display_name()
+            )));
         }
         let call_scope = new_scope(Some(&c.scope));
-        for (p, v) in def.params.iter().zip(values) {
-            declare(&call_scope, &p.name);
-            set_var(&call_scope, &p.name, v)?;
+        if let Some(r) = receiver {
+            define(&call_scope, &Rc::from("yeh"), r);
+        }
+        let mut args = args.into_iter();
+        for p in &def.params {
+            let v = if p.is_varargs {
+                Value::list(args.by_ref().collect())
+            } else {
+                match args.next() {
+                    Some(a) => a,
+                    None => self.eval(p.default.as_ref().expect("arity checked"), &c.scope)?,
+                }
+            };
+            define(&call_scope, &p.name, v);
         }
         self.depth += 1;
         let r = self.exec_block(&def.body, &call_scope);
         self.depth -= 1;
         match r? {
-            Flow::Return(v) | Flow::Normal(v) => Ok(v),
-            Flow::Break => Err(rt("'bas' cannot exit a function directly in AdarshLang.")),
-            Flow::Continue => Err(rt("'aage_badho' cannot escape to the caller in AdarshLang.")),
+            Flow::Return(v) => Ok(v),
+            // a function without `wapas` returns khali
+            _ => Ok(Value::Null),
         }
-    }
-}
-
-/// Values a REPL / embedding wants to show for the result of a snippet.
-pub fn flow_value(f: &Flow) -> Option<&Value> {
-    match f {
-        Flow::Normal(v) | Flow::Return(v) => Some(v),
-        _ => None,
     }
 }

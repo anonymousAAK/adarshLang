@@ -1,0 +1,3 @@
+kaam f(a, b) { wapas a; }
+badlo g = f;
+dikhao(g(1));

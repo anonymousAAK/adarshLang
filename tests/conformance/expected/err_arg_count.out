@@ -1,1 +1,5 @@
-ERROR: AdarshSemanticError: Function 'jodo' called with invalid argument count 3 in AdarshLang.
+Soch: 'jodo' ko 3 arguments diye, par yeh 2 arguments leta hai.
+  --> err_arg_count.aak:7:12
+   |
+ 7 | dikhao(jodo(1, 2, 3));
+   |            ^

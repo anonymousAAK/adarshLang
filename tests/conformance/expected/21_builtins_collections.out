@@ -4,7 +4,7 @@
 [1, 2]
 2
 [1, 2, 3]
-['apple', 'fig', 'pear']
+["apple", "fig", "pear"]
 [3, 2, 1]
 etsaman
 [20, 30, 40]
@@ -20,16 +20,16 @@ jhuth
 sahi_hai_be
 1-2-3
 ab
-['a', 'b', '', 'c']
-['solo']
+["a", "b", "", "c"]
+["solo"]
 [0, 1, 2, 3]
 [1, 4, 7]
 [10, 7, 4, 1]
 []
 24
 unknown
-['naam', 'umar']
-['Adarsh', 24]
+["naam", "umar"]
+["Adarsh", 24]
 2
 0
 b

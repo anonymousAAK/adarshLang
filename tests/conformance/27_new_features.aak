@@ -1,0 +1,85 @@
+# Fixes and features added in v0.2
+
+# --- aur / ya / nahin keywords, and short-circuit evaluation
+badlo user = khali;
+agar (user != khali aur user.naam == "x") { dikhao("never"); } warna { dikhao("short-circuit ne crash bachaya"); }
+dikhao(sahi_hai_be ya (1 / 0 == 0));
+dikhao(nahin jhuth);
+dikhao(1 < 2 && 2 < 3 || jhuth);
+
+# --- functions can be used before they are defined (hoisting)
+dikhao(double(21));
+kaam double(n) { wapas n * 2; }
+
+# --- functions may use globals declared later in the file
+kaam greet() { wapas "Namaste, {naam}!"; }
+badlo naam = "Adarsh";
+dikhao(greet());
+
+# --- nested named functions
+kaam outer(x) {
+    kaam inner(y) { wapas y + 1; }
+    wapas inner(x) * 10;
+}
+dikhao(outer(4));
+
+# --- new number formats
+dikhao(.5 + 1e3 + 2.5e-1 + 1_000);
+
+# --- string interpolation (with nesting and escapes)
+badlo items = ["chai", "samosa"];
+dikhao("Order: {join(items, ", ")} ({length(items)} items)");
+dikhao("Math: {2 ** 10}, bool: {5 > 3}, null: {khali}");
+dikhao("Literal braces: \{not code\}");
+
+# --- pakdo now catches runtime errors too
+pakdo { dikhao(10 / 0); } chhoddo (e) { dikhao("Pakda: {e}"); }
+pakdo { badlo xs = [1]; dikhao(xs[5]); } chhoddo (e) { dikhao("Pakda: {e}"); }
+pakdo { chhoddo({"code": 42}); } chhoddo (e) { dikhao(e.code); }
+
+# --- hatao removes from dicts and lists
+badlo d = {"a": 1, "b": 2, "c": 3};
+dikhao(hatao(d, "b"));
+dikhao(d);
+badlo l = [10, 20, 30];
+dikhao(hatao(l, 0));
+dikhao(l);
+
+# --- dhacha records with methods (yeh = this)
+dhacha Vyakti { naam, umar };
+kaam Vyakti.parichay() { wapas "Main {yeh.naam} hoon, umar {yeh.umar}."; }
+kaam Vyakti.birthday() { yeh.umar += 1; wapas yeh; }
+badlo p = Vyakti { naam: "Adarsh", umar: 24 };
+dikhao(p.parichay());
+p.birthday();
+dikhao(p);
+dikhao(prakar(p));
+dikhao(keys(p));
+dikhao(p == Vyakti { naam: "Adarsh", umar: 25 });
+
+# --- printing uses AdarshLang words everywhere
+dikhao([sahi_hai_be, jhuth, khali, "text", 1.5, [1], {"k": "v"}]);
+dikhao(double);
+dikhao(length);
+
+# --- case bodies may hold several statements
+chuno (2) {
+    case 1: dikhao("one");
+    case 2:
+        dikhao("two");
+        dikhao("still two");
+    warna_case: dikhao("other");
+}
+
+# --- deep recursion works and runaway recursion is catchable
+kaam depth(n) { agar (n == 0) { wapas 0; } wapas 1 + depth(n - 1); }
+dikhao(depth(5000));
+kaam forever(n) { wapas forever(n + 1); }
+pakdo { forever(0); } chhoddo (e) { dikhao("recursion pakdi gayi"); }
+
+# --- functions without wapas return khali
+kaam nothing() { badlo x = 1; }
+dikhao(nothing());
+
+# --- padho() returns khali when there is no input
+dikhao(padho());

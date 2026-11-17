@@ -1,2 +1,6 @@
 5.0
-ERROR: ZeroDivisionError: division by zero
+Galti: Zero se divide nahi kar sakte.
+  --> err_div_zero.aak:5:14
+   |
+ 5 | dikhao(total / parts);
+   |              ^

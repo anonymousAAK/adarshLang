@@ -1,6 +1,7 @@
-//! Builtin functions (port of the `_builtin_*` methods in `adarsh_lang/runtime.py`).
+//! Builtin functions.
 
-use crate::error::{AdarshError, HostKind};
+use crate::ast::BinOp;
+use crate::error::AdarshError;
 use crate::interp::Interpreter;
 use crate::semantics::Signature;
 use crate::value::*;
@@ -9,7 +10,6 @@ use crate::value::*;
 #[derive(Clone, Copy)]
 pub enum Def {
     Int(i64),
-    False,
     Str(&'static str),
     Null,
 }
@@ -18,7 +18,6 @@ impl Def {
     fn value(self) -> Value {
         match self {
             Def::Int(i) => Value::Int(i),
-            Def::False => Value::Bool(false),
             Def::Str(s) => Value::str(s),
             Def::Null => Value::Null,
         }
@@ -45,10 +44,11 @@ pub static BUILTINS: &[BuiltinSpec] = &[
     b!("push", 2),
     b!("pop", 1, [Def::Int(-1)]),
     b!("rakho", 3),
-    b!("nikalo", 2, [Def::False]),
+    b!("nikalo", 2, [Def::Null]),
+    b!("hatao", 2),
     b!("map", 2),
     b!("filter", 2),
-    b!("reduce", 2, [Def::False]),
+    b!("reduce", 2, [Def::Null]),
     b!("random_number", 0, [Def::Int(0), Def::Int(1)]),
     b!("current_time", 0),
     b!("abs", 1),
@@ -61,7 +61,7 @@ pub static BUILTINS: &[BuiltinSpec] = &[
     b!("prakar", 1),
     b!("shabdme", 1),
     b!("sankhya", 1),
-    b!("range", 1, [Def::Int(0), Def::Int(1)]),
+    b!("range", 1, [Def::Null, Def::Int(1)]),
     b!("keys", 1),
     b!("values", 1),
     b!("contains", 2),
@@ -74,6 +74,7 @@ pub static BUILTINS: &[BuiltinSpec] = &[
     b!("min_val", 2),
     b!("max_val", 2),
     b!("round_val", 1),
+    b!("padho", 0, [Def::Str("")]),
 ];
 
 pub fn builtin_name(id: usize) -> &'static str {
@@ -81,22 +82,23 @@ pub fn builtin_name(id: usize) -> &'static str {
 }
 
 pub fn signatures() -> impl Iterator<Item = (&'static str, Signature)> {
-    BUILTINS
-        .iter()
-        .map(|b| (b.name, Signature::from_counts(b.required, b.required + b.defaults.len())))
+    BUILTINS.iter().map(|b| (b.name, Signature::from_counts(b.required, b.required + b.defaults.len())))
 }
 
-fn rt(msg: &str) -> AdarshError {
+fn err(msg: impl Into<String>) -> AdarshError {
     AdarshError::runtime(msg)
 }
 
-/// Values that `ke_liye`, `map`, `filter`, `reduce` and `join` can iterate.
+/// "'push' ko pehla argument list chahiye, number mila."
+fn wants(func: &str, nth: &str, what: &str, got: &Value) -> AdarshError {
+    err(format!("'{func}' ko {nth} argument {what} chahiye, {} mila.", got.type_desc()))
+}
+
 pub fn is_iterable(v: &Value) -> bool {
     matches!(v, Value::List(_) | Value::Str(_) | Value::Dict(_))
 }
 
-/// Snapshot of the items Python would iterate (strings: chars, dicts: keys).
-/// Lists are handled live by callers that need Python's live-iteration behaviour.
+/// Snapshot of what `ke_liye` visits: list items, string characters, dict keys / record fields.
 pub fn iter_items(v: &Value) -> Option<Vec<Value>> {
     match v {
         Value::List(l) => Some(l.borrow().clone()),
@@ -106,28 +108,20 @@ pub fn iter_items(v: &Value) -> Option<Vec<Value>> {
     }
 }
 
-/// Python's `_normalize_index`.
+/// An index must be a whole number. `Ok(None)` means "too big to be in range".
 pub fn normalize_index(v: &Value) -> Result<Option<i64>, AdarshError> {
     match v {
-        Value::Bool(_) => Err(rt("Index must be an integer value in AdarshLang.")),
-        Value::Float(f) => {
-            if f.fract() != 0.0 || !f.is_finite() {
-                if f.is_finite() {
-                    return Err(rt("Index expressions must evaluate to whole numbers in AdarshLang."));
-                }
-                // inf.is_integer() is False in Python; nan too.
-                return Err(rt("Index expressions must evaluate to whole numbers in AdarshLang."));
-            }
+        Value::Int(i) => Ok(Some(*i)),
+        Value::Big(_) => Ok(None),
+        Value::Float(f) if f.is_finite() && f.fract() == 0.0 => {
             Ok(if f.abs() < 9.0e18 { Some(*f as i64) } else { None })
         }
-        Value::Int(i) => Ok(Some(*i)),
-        // a huge int is a valid index that is always out of range
-        Value::Big(_) => Ok(None),
-        _ => Err(rt("Index expressions must evaluate to integers in AdarshLang.")),
+        Value::Float(_) => Err(err(format!("Index poora number hona chahiye, {} nahi.", display(v)))),
+        _ => Err(err(format!("Index poora number hona chahiye, {} nahi.", v.type_desc()))),
     }
 }
 
-/// Resolve a (possibly negative) Python index against `len`.
+/// Resolve a (possibly negative) index against `len`.
 pub fn resolve(idx: Option<i64>, len: usize) -> Option<usize> {
     let i = idx?;
     let len = len as i64;
@@ -135,33 +129,32 @@ pub fn resolve(idx: Option<i64>, len: usize) -> Option<usize> {
     (0..len).contains(&j).then_some(j as usize)
 }
 
-fn char_at(s: &str, idx: Option<i64>) -> Option<Value> {
-    let n = s.chars().count();
-    resolve(idx, n).map(|i| Value::Str(s.chars().nth(i).unwrap().to_string().into()))
+pub fn out_of_range(idx: &Value, len: usize, what: &str) -> AdarshError {
+    let hint = if len == 0 {
+        format!("{what} khali hai")
+    } else {
+        format!("{what} ki length {len} hai, isliye index 0 se {} tak (ya -1 se -{len})", len - 1)
+    };
+    err(format!("Index {} bahar hai: {hint}.", display(idx)))
 }
 
-fn py_len(v: &Value) -> Result<usize, AdarshError> {
+fn len_of(v: &Value) -> Result<usize, AdarshError> {
     match v {
         Value::Str(s) => Ok(s.chars().count()),
         Value::List(l) => Ok(l.borrow().len()),
         Value::Dict(d) => Ok(d.borrow().len()),
-        _ => Err(AdarshError::type_error(format!("object of type '{}' has no len()", v.type_name()))),
+        _ => Err(err(format!("{} ki length nahi hoti.", v.type_desc()))),
     }
 }
 
-/// Python slice clamping for `[start:end]` with step 1.
+/// Python-style slice clamping for `[start:end]`.
 fn slice_bounds(start: &Value, end: &Value, len: usize) -> (usize, usize) {
     let len_i = len as i128;
     let clamp = |v: &Value| -> i128 {
         let raw: i128 = match v {
             Value::Int(i) => *i as i128,
-            Value::Big(b) => {
-                if num_traits::Signed::is_negative(&**b) {
-                    i128::MIN / 2
-                } else {
-                    i128::MAX / 2
-                }
-            }
+            Value::Big(b) if num_traits::Signed::is_negative(&**b) => i128::MIN / 2,
+            Value::Big(_) => i128::MAX / 2,
             _ => 0,
         };
         let r = if raw < 0 { raw + len_i } else { raw };
@@ -171,19 +164,18 @@ fn slice_bounds(start: &Value, end: &Value, len: usize) -> (usize, usize) {
     (s as usize, e.max(s) as usize)
 }
 
-/// Stable merge sort driven by Python's `<`, so mixed-type lists raise TypeError.
-fn py_sort(items: Vec<Value>) -> Result<Vec<Value>, AdarshError> {
+/// Stable merge sort driven by `<`, so mixed types give a clear error.
+fn sort_values(items: Vec<Value>) -> Result<Vec<Value>, AdarshError> {
     if items.len() <= 1 {
         return Ok(items);
     }
     let mut items = items;
     let right = items.split_off(items.len() / 2);
-    let (l, r) = (py_sort(items)?, py_sort(right)?);
+    let (l, r) = (sort_values(items)?, sort_values(right)?);
     let mut out = Vec::with_capacity(l.len() + r.len());
     let (mut i, mut j) = (0, 0);
     while i < l.len() && j < r.len() {
-        // take from the right only when strictly smaller (stability)
-        if compare(crate::ast::BinOp::Lt, &r[j], &l[i])? {
+        if compare(BinOp::Lt, &r[j], &l[i])? {
             out.push(r[j].clone());
             j += 1;
         } else {
@@ -196,21 +188,16 @@ fn py_sort(items: Vec<Value>) -> Result<Vec<Value>, AdarshError> {
     Ok(out)
 }
 
-fn round_half_even(v: &Value) -> Result<Value, AdarshError> {
-    match v {
-        Value::Bool(b) => Ok(Value::Int(*b as i64)),
-        Value::Int(_) | Value::Big(_) => Ok(v.clone()),
-        Value::Float(f) => float_to_int(f.round_ties_even()),
-        _ => Err(AdarshError::type_error(format!("type {} doesn't define __round__ method", v.type_name()))),
-    }
+fn need_number(func: &str, v: &Value) -> AdarshError {
+    err(format!("{func}() ko number chahiye, {} mila.", v.type_desc()))
 }
 
-fn floor_ceil(v: &Value, ceil: bool) -> Result<Value, AdarshError> {
+fn round_value(func: &str, v: &Value, f: fn(f64) -> f64) -> Result<Value, AdarshError> {
     match v {
         Value::Bool(b) => Ok(Value::Int(*b as i64)),
         Value::Int(_) | Value::Big(_) => Ok(v.clone()),
-        Value::Float(f) => float_to_int(if ceil { f.ceil() } else { f.floor() }),
-        _ => Err(AdarshError::type_error(format!("must be real number, not {}", v.type_name()))),
+        Value::Float(x) => float_to_int(f(*x)),
+        _ => Err(need_number(func, v)),
     }
 }
 
@@ -220,24 +207,21 @@ impl Interpreter {
         let spec = &BUILTINS[id];
         let max = spec.required + spec.defaults.len();
         if args.len() < spec.required || args.len() > max {
-            return Err(AdarshError::runtime(format!(
-                "Builtin '{}' expected between {} and {} arguments in AdarshLang.",
-                spec.name, spec.required, max
-            )));
+            let sig = Signature::from_counts(spec.required, max);
+            return Err(err(sig.arity_error(spec.name, args.len())));
         }
         let given = args.len();
         let mut v = args;
         for i in given..max {
             v.push(spec.defaults[i - spec.required].value());
         }
-        // provided[i] is true when the caller passed argument i explicitly
         let provided = |i: usize| i < given;
         self.dispatch(spec.name, v, &provided)
     }
 
-    fn call_value(&mut self, f: &Value, args: Vec<Value>) -> Result<Value, AdarshError> {
+    fn call_value(&mut self, func: &str, f: &Value, args: Vec<Value>) -> Result<Value, AdarshError> {
         if !f.is_callable() {
-            return Err(rt("Expected a callable function value in AdarshLang."));
+            return Err(wants(func, "pehla", "kaam (function)", f));
         }
         self.call(f, args)
     }
@@ -245,25 +229,26 @@ impl Interpreter {
     fn dispatch(&mut self, name: &str, v: Vec<Value>, provided: &dyn Fn(usize) -> bool) -> Result<Value, AdarshError> {
         let a = &v;
         Ok(match name {
-            "length" => Value::Int(py_len(&a[0])? as i64),
+            "length" => Value::Int(len_of(&a[0])? as i64),
             "push" => {
-                let Value::List(l) = &a[0] else { return Err(rt("'push' expects a list target in AdarshLang.")) };
+                let Value::List(l) = &a[0] else { return Err(wants(name, "pehla", "list", &a[0])) };
                 l.borrow_mut().push(a[1].clone());
                 a[0].clone()
             }
             "pop" => {
-                let Value::List(l) = &a[0] else { return Err(rt("'pop' expects a list target in AdarshLang.")) };
-                let idx = if provided(1) { normalize_index(&a[1])? } else { Some(-1) };
+                let Value::List(l) = &a[0] else { return Err(wants(name, "pehla", "list", &a[0])) };
+                let idx = normalize_index(&a[1])?;
                 let mut list = l.borrow_mut();
+                if list.is_empty() {
+                    return Err(err("Khali list se pop() nahi kar sakte."));
+                }
                 match resolve(idx, list.len()) {
                     Some(i) => list.remove(i),
-                    None => return Err(rt("Index out of range for 'pop' in AdarshLang.")),
+                    None => return Err(out_of_range(&a[1], list.len(), "List")),
                 }
             }
             "rakho" => {
-                let Value::Dict(d) = &a[0] else {
-                    return Err(rt("'rakho' expects a dictionary target in AdarshLang."));
-                };
+                let Value::Dict(d) = &a[0] else { return Err(wants(name, "pehla", "dict", &a[0])) };
                 d.borrow_mut().insert(a[1].clone(), a[2].clone())?;
                 a[0].clone()
             }
@@ -273,7 +258,7 @@ impl Interpreter {
                     Value::Dict(d) => match d.borrow().get(&a[1])? {
                         Some(x) => x,
                         None if has_default => a[2].clone(),
-                        None => return Err(rt("Key not present in 'nikalo' dictionary lookup in AdarshLang.")),
+                        None => return Err(err(format!("Key {} dict mein nahi hai.", repr(&a[1])))),
                     },
                     Value::List(l) => {
                         let idx = normalize_index(&a[1])?;
@@ -281,31 +266,48 @@ impl Interpreter {
                         match resolve(idx, list.len()) {
                             Some(i) => list[i].clone(),
                             None if has_default => a[2].clone(),
-                            None => return Err(rt("Index out of range for 'nikalo' in AdarshLang.")),
+                            None => return Err(out_of_range(&a[1], list.len(), "List")),
                         }
                     }
                     Value::Str(s) => {
                         let idx = normalize_index(&a[1])?;
-                        match char_at(s, idx) {
-                            Some(c) => c,
+                        let n = s.chars().count();
+                        match resolve(idx, n) {
+                            Some(i) => Value::Str(s.chars().nth(i).unwrap().to_string().into()),
                             None if has_default => a[2].clone(),
-                            None => return Err(rt("Index out of range for 'nikalo' in AdarshLang.")),
+                            None => return Err(out_of_range(&a[1], n, "String")),
                         }
                     }
-                    _ => return Err(rt("'nikalo' expects a dictionary, list, or string target in AdarshLang.")),
+                    other => return Err(wants(name, "pehla", "dict, list ya string", other)),
                 }
             }
+            "hatao" => match &a[0] {
+                Value::Dict(d) => {
+                    if let Some(t) = &d.borrow().type_name {
+                        return Err(err(format!("Dhacha {t} se field nahi hata sakte.")));
+                    }
+                    let removed = d.borrow_mut().remove(&a[1])?;
+                    removed.ok_or_else(|| err(format!("Key {} dict mein nahi hai.", repr(&a[1]))))?
+                }
+                Value::List(l) => {
+                    let idx = normalize_index(&a[1])?;
+                    let mut list = l.borrow_mut();
+                    match resolve(idx, list.len()) {
+                        Some(i) => list.remove(i),
+                        None => return Err(out_of_range(&a[1], list.len(), "List")),
+                    }
+                }
+                other => return Err(wants(name, "pehla", "dict ya list", other)),
+            },
             "map" | "filter" => {
                 if !is_iterable(&a[1]) {
-                    return Err(AdarshError::runtime(format!(
-                        "'{name}' expects an iterable second argument in AdarshLang."
-                    )));
+                    return Err(wants(name, "doosra", "list, string ya dict", &a[1]));
                 }
                 let mut out = Vec::new();
                 let mut i = 0;
                 while let Some(item) = self.nth_item(&a[1], i) {
                     i += 1;
-                    let r = self.call_value(&a[0], vec![item.clone()])?;
+                    let r = self.call_value(name, &a[0], vec![item.clone()])?;
                     if name == "map" {
                         out.push(r);
                     } else if r.truthy() {
@@ -316,155 +318,132 @@ impl Interpreter {
             }
             "reduce" => {
                 if !is_iterable(&a[1]) {
-                    return Err(rt("'reduce' expects an iterable second argument in AdarshLang."));
+                    return Err(wants(name, "doosra", "list, string ya dict", &a[1]));
                 }
                 let mut i = 0;
                 let mut acc = if provided(2) {
                     a[2].clone()
                 } else {
-                    match self.nth_item(&a[1], 0) {
-                        Some(x) => {
-                            i = 1;
-                            x
-                        }
-                        None => {
-                            return Err(rt(
-                                "'reduce' requires at least one item when no initial value is provided in AdarshLang.",
-                            ))
-                        }
-                    }
+                    i = 1;
+                    self.nth_item(&a[1], 0).ok_or_else(|| {
+                        err("reduce() ko khali list mili aur shuruaati value (teesra argument) nahi di.")
+                    })?
                 };
                 while let Some(item) = self.nth_item(&a[1], i) {
                     i += 1;
-                    acc = self.call_value(&a[0], vec![acc, item])?;
+                    acc = self.call_value(name, &a[0], vec![acc, item])?;
                 }
                 acc
             }
             "random_number" => {
                 let (mut s, mut e) = (a[0].clone(), a[1].clone());
-                if compare(crate::ast::BinOp::Gt, &s, &e)? {
+                for x in [&s, &e] {
+                    if as_num(x).is_none() {
+                        return Err(need_number("random_number", x));
+                    }
+                }
+                if compare(BinOp::Gt, &s, &e)? {
                     std::mem::swap(&mut s, &mut e);
                 }
                 let r = self.next_random();
-                // start + (end - start) * random()
-                let span = crate::value::arith(crate::ast::BinOp::Sub, &e, &s)?;
-                let scaled = crate::value::arith(crate::ast::BinOp::Mul, &span, &Value::Float(r))?;
-                crate::value::arith(crate::ast::BinOp::Add, &s, &scaled)?
+                let span = arith(BinOp::Sub, &e, &s)?;
+                arith(BinOp::Add, &s, &arith(BinOp::Mul, &span, &Value::Float(r))?)?
             }
             "current_time" => Value::Float((self.clock)()),
             "abs" => abs_value(&a[0])?,
-            "floor" => floor_ceil(&a[0], false)?,
-            "ceil" => floor_ceil(&a[0], true)?,
-            "upper" => Value::Str(py_str(&a[0]).to_uppercase().into()),
-            "lower" => Value::Str(py_str(&a[0]).to_lowercase().into()),
+            "floor" => round_value("floor", &a[0], f64::floor)?,
+            "ceil" => round_value("ceil", &a[0], f64::ceil)?,
+            "round_val" => round_value("round_val", &a[0], f64::round_ties_even)?,
+            "upper" => Value::Str(display(&a[0]).to_uppercase().into()),
+            "lower" => Value::Str(display(&a[0]).to_lowercase().into()),
             "join" => {
-                let items = iter_items(&a[0]).ok_or_else(|| rt("'join' expects an iterable of values in AdarshLang."))?;
-                let sep = py_str(&a[1]);
-                let parts: Vec<String> = items.iter().map(py_str).collect();
-                Value::Str(parts.join(&sep).into())
+                let items = iter_items(&a[0]).ok_or_else(|| wants(name, "pehla", "list", &a[0]))?;
+                let parts: Vec<String> = items.iter().map(display).collect();
+                Value::Str(parts.join(&display(&a[1])).into())
             }
             "split" => {
-                let (s, sep) = (py_str(&a[0]), py_str(&a[1]));
+                let (s, sep) = (display(&a[0]), display(&a[1]));
                 if sep.is_empty() {
-                    return Err(AdarshError::value_error("empty separator"));
+                    return Err(err("split() ka separator khali string nahi ho sakta."));
                 }
                 Value::list(s.split(sep.as_str()).map(Value::str).collect())
             }
-            "prakar" => Value::str(match &a[0] {
-                Value::Null => "khali",
-                Value::Bool(_) => "boolean",
-                Value::Int(_) | Value::Big(_) | Value::Float(_) => "number",
-                Value::Str(_) => "string",
-                Value::List(_) => "list",
-                Value::Dict(d) => {
-                    if d.borrow().get_str("__type__").is_some() {
-                        "dhacha"
-                    } else {
-                        "dict"
-                    }
-                }
-                Value::Func(_) | Value::Builtin(_) => "kaam",
-            }),
+            "prakar" => Value::str(a[0].prakar()),
             "shabdme" => Value::Str(display(&a[0]).into()),
-            "sankhya" => {
-                let val = &a[0];
-                match val {
-                    Value::Int(_) | Value::Big(_) | Value::Float(_) | Value::Bool(_) => val.clone(),
-                    _ => {
-                        let text = py_str(val);
-                        let err = || AdarshError::runtime(format!("Cannot convert '{text}' to number in AdarshLang."));
-                        match val {
-                            Value::Str(s) if text.contains('.') => Value::Float(parse_py_float(s).ok_or_else(err)?),
-                            Value::Str(s) => parse_py_int(s).ok_or_else(err)?,
-                            _ => return Err(err()),
-                        }
+            "sankhya" => match &a[0] {
+                Value::Int(_) | Value::Big(_) | Value::Float(_) => a[0].clone(),
+                Value::Bool(b) => Value::Int(*b as i64),
+                Value::Str(s) => {
+                    let bad = || err(format!("{} ko number mein nahi badal sakte.", repr(&a[0])));
+                    match parse_int(s) {
+                        Some(v) => v,
+                        None => Value::Float(parse_float(s).ok_or_else(bad)?),
                     }
                 }
-            }
+                other => return Err(err(format!("{} ko number mein nahi badal sakte.", other.type_desc()))),
+            },
             "range" => {
-                let (start, end, step) = if !provided(1) {
-                    (Value::Int(0), py_int(&a[0])?, Value::Int(1))
+                let (start, end) = if provided(1) && !matches!(a[1], Value::Null) {
+                    (to_int(&a[0], "range()")?, to_int(&a[1], "range()")?)
                 } else {
-                    (py_int(&a[0])?, py_int(&a[1])?, py_int(&a[2])?)
+                    (Value::Int(0), to_int(&a[0], "range()")?)
                 };
+                let step = to_int(&a[2], "range()")?;
                 let as_i = |v: &Value| match v {
                     Value::Int(i) => Ok(*i),
-                    _ => Err(AdarshError::overflow("Python int too large to convert to C ssize_t")),
+                    _ => Err(err("range() ke number bahut bade hain.")),
                 };
                 let (s, e, st) = (as_i(&start)?, as_i(&end)?, as_i(&step)?);
                 if st == 0 {
-                    return Err(AdarshError::value_error("range() arg 3 must not be zero"));
+                    return Err(err("range() ka step 0 nahi ho sakta."));
                 }
                 let count: i128 = if st > 0 {
-                    if e > s { ((e as i128 - s as i128) + st as i128 - 1) / st as i128 } else { 0 }
+                    if e > s {
+                        (e as i128 - s as i128 + st as i128 - 1) / st as i128
+                    } else {
+                        0
+                    }
                 } else if s > e {
-                    ((s as i128 - e as i128) + (-(st as i128)) - 1) / (-(st as i128))
+                    (s as i128 - e as i128 - st as i128 - 1) / (-(st as i128))
                 } else {
                     0
                 };
                 if count > 100_000_000 {
-                    return Err(AdarshError::Host(HostKind::MemoryError, String::new()));
+                    return Err(err("range() bahut badi list banayega (10 crore se zyada items)."));
                 }
                 Value::list((0..count as i64).map(|k| Value::Int(s + k * st)).collect())
             }
             "keys" | "values" => {
-                let Value::Dict(d) = &a[0] else {
-                    return Err(AdarshError::runtime(format!("'{name}' expects a dictionary in AdarshLang.")));
-                };
+                let Value::Dict(d) = &a[0] else { return Err(wants(name, "pehla", "dict", &a[0])) };
                 let d = d.borrow();
-                let not_type = |k: &Value| !matches!(k, Value::Str(s) if &**s == "__type__");
                 Value::list(
-                    d.entries()
-                        .iter()
-                        .filter(|(k, _)| not_type(k))
-                        .map(|(k, v)| if name == "keys" { k.clone() } else { v.clone() })
-                        .collect(),
+                    d.entries().iter().map(|(k, v)| if name == "keys" { k.clone() } else { v.clone() }).collect(),
                 )
             }
             "contains" => Value::Bool(match &a[0] {
                 Value::List(l) => {
                     let items = l.borrow().clone();
-                    items.iter().any(|x| py_eq(x, &a[1]))
+                    items.iter().any(|x| values_eq(x, &a[1]))
                 }
-                Value::Str(s) => s.contains(py_str(&a[1]).as_str()),
+                Value::Str(s) => s.contains(display(&a[1]).as_str()),
                 Value::Dict(d) => d.borrow().contains(&a[1])?,
-                _ => return Err(rt("'contains' expects a list, string, or dictionary in AdarshLang.")),
+                other => return Err(wants(name, "pehla", "list, string ya dict", other)),
             }),
             "sort" => {
-                let Value::List(l) = &a[0] else { return Err(rt("'sort' expects a list in AdarshLang.")) };
+                let Value::List(l) = &a[0] else { return Err(wants(name, "pehla", "list", &a[0])) };
                 let items = l.borrow().clone();
-                Value::list(py_sort(items)?)
+                Value::list(sort_values(items)?)
             }
             "reverse" => match &a[0] {
                 Value::List(l) => Value::list(l.borrow().iter().rev().cloned().collect()),
                 Value::Str(s) => Value::Str(s.chars().rev().collect::<String>().into()),
-                _ => return Err(rt("'reverse' expects a list or string in AdarshLang.")),
+                other => return Err(wants(name, "pehla", "list ya string", other)),
             },
             "slice" => {
-                let start = py_int(&a[1])?;
+                let start = to_int(&a[1], "slice()")?;
                 let end = match &a[2] {
-                    Value::Null => Value::Int(py_len(&a[0])? as i64),
-                    other => py_int(other)?,
+                    Value::Null => Value::Int(i64::MAX),
+                    other => to_int(other, "slice()")?,
                 };
                 match &a[0] {
                     Value::List(l) => {
@@ -477,46 +456,56 @@ impl Interpreter {
                         let (s, e) = slice_bounds(&start, &end, chars.len());
                         Value::Str(chars[s..e].iter().collect::<String>().into())
                     }
-                    _ => return Err(rt("'slice' expects a list or string in AdarshLang.")),
+                    other => return Err(wants(name, "pehla", "list ya string", other)),
                 }
             }
-            "replace" => Value::Str(py_str(&a[0]).replace(&py_str(&a[1]), &py_str(&a[2])).into()),
-            "trim" => Value::Str(py_str(&a[0]).trim().into()),
+            "replace" => Value::Str(display(&a[0]).replace(&display(&a[1]), &display(&a[2])).into()),
+            "trim" => Value::Str(display(&a[0]).trim().into()),
             "find" => match &a[0] {
                 Value::List(l) => {
                     let items = l.borrow().clone();
-                    Value::Int(items.iter().position(|x| py_eq(x, &a[1])).map(|p| p as i64).unwrap_or(-1))
+                    Value::Int(items.iter().position(|x| values_eq(x, &a[1])).map(|p| p as i64).unwrap_or(-1))
                 }
                 Value::Str(s) => {
-                    let needle = py_str(&a[1]);
+                    let needle = display(&a[1]);
                     Value::Int(match s.find(needle.as_str()) {
                         Some(byte) => s[..byte].chars().count() as i64,
                         None => -1,
                     })
                 }
-                _ => return Err(rt("'find' expects a list or string in AdarshLang.")),
+                other => return Err(wants(name, "pehla", "list ya string", other)),
             },
             "min_val" => {
-                if compare(crate::ast::BinOp::Lt, &a[1], &a[0])? {
+                if compare(BinOp::Lt, &a[1], &a[0])? {
                     a[1].clone()
                 } else {
                     a[0].clone()
                 }
             }
             "max_val" => {
-                if compare(crate::ast::BinOp::Gt, &a[1], &a[0])? {
+                if compare(BinOp::Gt, &a[1], &a[0])? {
                     a[1].clone()
                 } else {
                     a[0].clone()
                 }
             }
-            "round_val" => round_half_even(&a[0])?,
-            _ => return Err(AdarshError::runtime(format!("Unknown builtin '{name}' in AdarshLang."))),
+            "padho" => {
+                let prompt = display(&a[0]);
+                if !prompt.is_empty() {
+                    self.write_str(&prompt);
+                    self.flush();
+                }
+                match (self.input)() {
+                    Some(line) => Value::Str(line.trim_end_matches(['\n', '\r']).into()),
+                    None => Value::Null,
+                }
+            }
+            _ => unreachable!("unknown builtin {name}"),
         })
     }
 
-    /// Item `i` of an iterable, reading lists live (Python iterates lists by index,
-    /// so items appended during iteration are visited).
+    /// Item `i` of an iterable. Lists are read live, so items pushed during a
+    /// loop are visited too.
     pub fn nth_item(&self, v: &Value, i: usize) -> Option<Value> {
         match v {
             Value::List(l) => l.borrow().get(i).cloned(),

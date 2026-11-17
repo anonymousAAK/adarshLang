@@ -1,0 +1,91 @@
+# pakdo / chhoddo: throwing and catching strings, numbers, lists, dicts and khali, from inside functions and loops
+
+kaam riskyDiv(a, b) {
+    agar (b == 0) {
+        chhoddo("zero se bhaag");
+    }
+    wapas a / b;
+}
+
+pakdo {
+    dikhao(riskyDiv(10, 4));
+    dikhao(riskyDiv(1, 0));
+    dikhao("yeh nahi chhapega");
+} chhoddo (err) {
+    dikhao("pakda: ");
+    dikhao(err);
+}
+
+# a number thrown
+pakdo {
+    chhoddo(404);
+} chhoddo (e) {
+    dikhao(e + 1);
+}
+
+# a dict thrown
+pakdo {
+    chhoddo({"code": 500, "msg": "server"});
+} chhoddo (e) {
+    dikhao(e["code"]);
+    dikhao(e.msg);
+}
+
+# khali thrown
+pakdo {
+    chhoddo(khali);
+} chhoddo (e) {
+    dikhao(e);
+}
+
+# a list thrown
+pakdo {
+    chhoddo([1, "two"]);
+} chhoddo (e) {
+    dikhao(length(e));
+    dikhao(e);
+}
+
+# no throw: catch block is skipped
+pakdo {
+    dikhao("sab theek");
+} chhoddo (e) {
+    dikhao("kabhi nahi");
+}
+
+# try inside a loop: failures are skipped, successes continue
+ke_liye (badlo n in [1, 0, 2]) {
+    pakdo {
+        agar (n == 0) {
+            chhoddo("zero");
+        }
+        dikhao(10 / n);
+    } chhoddo (e) {
+        dikhao("skip: " + e);
+    }
+}
+
+# return from inside try and catch blocks
+kaam firstNegative(xs) {
+    ke_liye (badlo x : xs) {
+        pakdo {
+            agar (x < 0) {
+                chhoddo(x);
+            }
+        } chhoddo (e) {
+            wapas e;
+        }
+    }
+    wapas khali;
+}
+dikhao(firstNegative([3, 5, -2, 7, -9]));
+dikhao(firstNegative([1, 2]));
+
+# the catch variable is local to the catch block
+badlo e = "bahar wala";
+pakdo {
+    chhoddo("andar wala");
+} chhoddo (e) {
+    dikhao(e);
+}
+dikhao(e);

@@ -1,0 +1,6 @@
+# Expected: Python TypeError from adding a string and an integer
+badlo a = "5";
+dikhao("theek");
+dikhao(a + "5");
+dikhao(a + 1);
+dikhao("yeh nahi chhapega");

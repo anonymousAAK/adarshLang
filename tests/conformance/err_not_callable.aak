@@ -1,0 +1,5 @@
+# Expected: AdarshRuntimeError, calling a value that is not a function
+badlo x = 42;
+dikhao(x);
+dikhao(x(1));
+dikhao("yeh nahi chhapega");

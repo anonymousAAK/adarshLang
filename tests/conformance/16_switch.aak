@@ -1,0 +1,72 @@
+# chuno (switch) with multiple matches per case, block bodies, warna_case default, and bas inside a case
+
+ke_liye (badlo tok : ["ek", "do", "teen", "char", "paanch", "koi"]) {
+    chuno (tok) {
+        case "ek", "do":
+            dikhao("chhota");
+        case "teen", "char", "paanch":
+            dikhao("madhyam");
+        warna_case:
+            dikhao("ajnaat");
+    }
+}
+
+# matching on an expression, with a block body
+chuno (2 * 3) {
+    case 5:
+        dikhao("paanch");
+    case 6: {
+        badlo msg = "chhah";
+        dikhao(msg);
+    }
+    warna_case:
+        dikhao("kuch aur");
+}
+
+# no case matches and there is no warna_case: nothing printed
+chuno (99) {
+    case 1:
+        dikhao("ek");
+    case 2:
+        dikhao("do");
+}
+dikhao("switch khatam");
+
+# bas inside a case leaves the enclosing loop
+ke_liye (badlo n : [1, 2, 3, 4]) {
+    chuno (n) {
+        case 3:
+            bas;
+        warna_case:
+            dikhao(n);
+    }
+}
+
+# switch on a boolean and on khali
+chuno (sahi_hai_be) {
+    case jhuth:
+        dikhao("galat");
+    case sahi_hai_be:
+        dikhao("sahi");
+}
+chuno (khali) {
+    case 0:
+        dikhao("zero");
+    warna_case:
+        dikhao("khali default");
+}
+
+# switch as the last statement of a function body
+kaam colorCode(c) {
+    chuno (c) {
+        case "lal", "red":
+            wapas 1;
+        case "neela", "blue":
+            wapas 2;
+        warna_case:
+            wapas 0;
+    }
+}
+dikhao(colorCode("red"));
+dikhao(colorCode("blue"));
+dikhao(colorCode("hara"));

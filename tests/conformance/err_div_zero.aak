@@ -1,0 +1,6 @@
+# Expected: ZeroDivisionError from dividing by a variable that is 0
+badlo total = 10;
+badlo parts = 0;
+dikhao(total / 2);
+dikhao(total / parts);
+dikhao("yeh nahi chhapega");

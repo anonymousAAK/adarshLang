@@ -1,0 +1,5 @@
+# Expected: AdarshRuntimeError, dictionary key not present
+badlo d = {"naam": "Adarsh"};
+dikhao(d["naam"]);
+dikhao(d["umar"]);
+dikhao("yeh nahi chhapega");

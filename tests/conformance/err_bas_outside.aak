@@ -1,0 +1,7 @@
+# Expected: semantic error, 'bas' used outside any loop
+dikhao("bahar");
+agar (sahi_hai_be) {
+    dikhao("agar ke andar");
+}
+bas;
+dikhao("yeh nahi chhapega");

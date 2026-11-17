@@ -1,0 +1,63 @@
+# Recursion with modest depth (all below 50 frames)
+
+kaam fact(n) {
+    agar (n <= 1) {
+        wapas 1;
+    }
+    wapas n * fact(n - 1);
+}
+
+kaam fib(n) {
+    agar (n < 2) {
+        wapas n;
+    }
+    wapas fib(n - 1) + fib(n - 2);
+}
+
+kaam depth(n) {
+    agar (n == 0) {
+        wapas 0;
+    }
+    wapas 1 + depth(n - 1);
+}
+
+kaam gcd(a, b) {
+    agar (b == 0) {
+        wapas a;
+    }
+    wapas gcd(b, a % b);
+}
+
+kaam sumList(xs, i) {
+    agar (i >= length(xs)) {
+        wapas 0;
+    }
+    wapas xs[i] + sumList(xs, i + 1);
+}
+
+kaam power(base, e) {
+    agar (e == 0) {
+        wapas 1;
+    }
+    wapas base * power(base, e - 1);
+}
+
+kaam isPalin(s) {
+    agar (length(s) < 2) {
+        wapas sahi_hai_be;
+    }
+    agar (s[0] != s[-1]) {
+        wapas jhuth;
+    }
+    wapas isPalin(slice(s, 1, length(s) - 1));
+}
+
+dikhao(fact(10));
+dikhao(fact(20));
+dikhao(fib(15));
+dikhao(depth(30));
+dikhao(gcd(48, 18));
+dikhao(sumList([1, 2, 3, 4, 5], 0));
+dikhao(power(2, 12));
+dikhao(isPalin("racecar"));
+dikhao(isPalin("adarsh"));

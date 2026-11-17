@@ -1,0 +1,40 @@
+# Integer arithmetic, '/' always gives float, '%' with negatives, '**' incl. negative exponents
+
+dikhao(7 + 5);
+dikhao(7 - 12);
+dikhao(6 * 7);
+dikhao(7 / 2);
+dikhao(8 / 4);
+dikhao(-7 / 2);
+
+# modulo follows Python sign rules (result has sign of divisor)
+dikhao(10 % 3);
+dikhao(-7 % 3);
+dikhao(7 % -3);
+dikhao(-7 % -3);
+dikhao((-7) % 3);
+
+# power
+dikhao(2 ** 10);
+dikhao(3 ** 0);
+dikhao(2 ** -1);
+dikhao(2 ** -3);
+dikhao(2 ** 3 ** 2);
+dikhao(-2 ** 2);
+dikhao((-2) ** 2);
+dikhao(-2 ** -2);
+
+# precedence
+dikhao(1 + 2 * 3);
+dikhao((1 + 2) * 3);
+dikhao(10 - 4 - 3);
+dikhao(100 / 10 / 5);
+dikhao(1 + 2 * 3 ** 2);
+dikhao(10 % 3 * 2);
+dikhao(- 5 + 2);
+
+# unary minus on variables
+badlo n = 9;
+dikhao(-n);
+dikhao(-n + 20);
+dikhao(n - -1);

@@ -1,0 +1,41 @@
+# Float and big-int printing. Output must match Python's repr-style formatting.
+
+dikhao(0.1 + 0.2);
+dikhao(1 / 3);
+dikhao(2 / 3);
+dikhao(1 / 7);
+dikhao(7 / 7);
+dikhao(4 / 2);
+dikhao(3.0);
+dikhao(2.5 * 2);
+dikhao(0.5 + 0.25);
+
+# very small and very large floats
+dikhao(1 / 100000);
+dikhao(1 / 1000);
+dikhao(3 / 1000000);
+dikhao(10.0 ** 20);
+dikhao(10.0 ** 15);
+dikhao(10.0 ** 16);
+dikhao(2.0 ** 0.5);
+
+# big integers stay exact
+dikhao(2 ** 60);
+dikhao(2 ** 64);
+dikhao(10 ** 20);
+dikhao(10 ** 20 + 1);
+dikhao(12345678901234567890 * 1000);
+dikhao(2 ** 100 - 2 ** 99);
+
+# float / int mixing
+dikhao(1.5 + 1);
+dikhao(9 - 0.5);
+dikhao(3.0 * 3);
+dikhao(0.1 * 3);
+dikhao(100.0 - 99.9);
+
+# float arithmetic reaches the same value via different paths
+badlo half = 1 / 2;
+dikhao(half);
+dikhao(half * half);
+dikhao(half ** 10);

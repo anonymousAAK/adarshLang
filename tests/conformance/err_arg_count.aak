@@ -1,0 +1,8 @@
+# Expected: semantic error, named function called with too many arguments
+kaam jodo(a, b) {
+    wapas a + b;
+}
+dikhao(jodo(1, 2));
+dikhao(jodo(3, 4));
+dikhao(jodo(1, 2, 3));
+dikhao("yeh nahi chhapega");

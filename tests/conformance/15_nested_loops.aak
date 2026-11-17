@@ -1,0 +1,55 @@
+# Nested loops: bas only leaves the innermost loop; a bas in the outer loop leaves the outer one
+
+ke_liye (badlo i : range(1, 4)) {
+    badlo line = "";
+    ginnati (badlo j = 1; j <= 3; j += 1) {
+        agar (j > i) {
+            bas;
+        }
+        line = line + shabdme(i * j) + " ";
+    }
+    dikhao(trim(line));
+}
+
+# a multiplication-style grid built with nested while loops
+badlo row = 1;
+jabtak (row <= 3) {
+    badlo col = 1;
+    badlo cells = [];
+    jabtak (col <= 3) {
+        push(cells, row * col);
+        col += 1;
+    }
+    dikhao(cells);
+    row += 1;
+}
+
+# outer loop stops once an inner search succeeds
+badlo found = khali;
+badlo a = 0;
+jabtak (a < 5) {
+    a += 1;
+    ginnati (badlo b = 0; b < 5; b += 1) {
+        agar (a * b == 6) {
+            found = a * 10 + b;
+            bas;
+        }
+    }
+    agar (found != khali) {
+        bas;
+    }
+}
+dikhao(found);
+dikhao(a);
+
+# continue in the inner loop does not affect the outer loop
+badlo pairs = 0;
+ke_liye (badlo p : [1, 2, 3]) {
+    ke_liye (badlo q : [1, 2, 3]) {
+        agar (p == q) {
+            aage_badho;
+        }
+        pairs += 1;
+    }
+}
+dikhao(pairs);

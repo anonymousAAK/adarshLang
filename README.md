@@ -174,6 +174,7 @@ cargo test --release                  # all tests
 BLESS=1 cargo test --release          # after an intended change: rewrite expected outputs, then review the diff
 cargo run --release -- ../examples/test.aak
 ../scripts/build-playground.sh        # rebuild playground/adarshlang.wasm
+python3 ../scripts/fuzz.py --cases 4000   # throw thousands of broken programs at it; none may crash
 ```
 
 CI (`.github/workflows/ci.yml`) runs tests on Windows, macOS and Linux, plus `rustfmt`, `clippy` and the WebAssembly build.

@@ -1,5 +1,6 @@
-Galti: 'f' ko 1 argument diye, par yeh 2 arguments leta hai.
+Galti [E002]: 'f' ko 1 argument diye, par yeh 2 arguments leta hai.
   --> err_runtime_arity.aak:3:9
    |
  3 | dikhao(g(1));
    |         ^
+  Aur jaankari: adarsh samjhao E002

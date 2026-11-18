@@ -1,0 +1,6 @@
+Soch [E003]: 'PI2' pakka (constant) hai, isliye uski value badal nahi sakte. Badalni ho to 'badlo' se banao.
+  --> err_pakka.aak:2:5
+   |
+ 2 | PI2 = 3;
+   |     ^
+  Aur jaankari: adarsh samjhao E003

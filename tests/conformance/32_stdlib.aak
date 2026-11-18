@@ -1,0 +1,94 @@
+# Batch D: standard library
+## math
+dikhao(sqrt(16));
+dikhao(round(sin(PI / 2), ank: 3));
+dikhao(round(log(1000, 10), ank: 6));
+dikhao(gcd(48, 18));
+dikhao(lcm(4, 6));
+dikhao(filter(is_prime, 1..20));
+dikhao(round(3.14159, 2));
+pakdo { sqrt(-1); } chhoddo (e) { dikhao(e); }
+
+## strings
+badlo s = "namaste duniya";
+dikhao(s.starts_with("nama"));
+dikhao(s.ends_with("duniya"));
+dikhao("7".pad_left(3, "0"));
+dikhao("ab".pad_right(5, ".") + "|");
+dikhao("ha".repeat(3));
+dikhao(count(s, "a"));
+dikhao(count([1, 2, 1, 1], 1));
+dikhao(char_code("A"));
+dikhao(from_code(2309));
+dikhao(format(3.14159, ".2"));
+dikhao(format(42, ">6") + "|");
+dikhao(format("hi", "<6") + "|");
+dikhao(format(1234567.891, ",.1"));
+dikhao(format(0.256, ".1%"));
+badlo daam = 49.5;
+dikhao("Daam: {daam:.2} | {daam:>8} | {7:03}");
+
+## lists
+dikhao(sum([1, 2, 3, 4]));
+dikhao(min([5, 2, 8]));
+dikhao(max(["chai", "samosa", "ladoo"], by: x => length(x)));
+dikhao(any([0, khali, 3]));
+dikhao(all([1, 2, 0]));
+dikhao(all([2, 4, 6], x => x % 2 == 0));
+dikhao(zip(["a", "b"], [1, 2]));
+dikhao(unique([3, 1, 3, 2, 1]));
+dikhao(flatten([[1, 2], [3], 4]));
+dikhao(group_by(["aam", "anaar", "kela"], x => x[0]));
+dikhao(insert([1, 3], 1, 2));
+dikhao(list("abc"));
+dikhao(tuple([1, 2]));
+
+## Indian formats
+dikhao(lakh_format(1500000));
+dikhao(lakh_format(123456789.5));
+dikhao(rupaye(99.5));
+dikhao(rupaye(1234567));
+dikhao(shabdon_mein(125));
+dikhao(shabdon_mein(1999));
+dikhao(shabdon_mein(10101010));
+dikhao(shabdon_mein(0));
+
+## random (seeded runs aren't guaranteed, so only check ranges)
+badlo d = random_int(1, 6);
+dikhao(1 <= d <= 6);
+dikhao(random_choice(["x"]));
+dikhao(length(shuffle([1, 2, 3])));
+
+## dates
+badlo t = tareekh(2025, 8, 15);
+dikhao(t);
+dikhao(din_ka_naam(t));
+dikhao(tareekh_jodo(t, 20));
+dikhao(din_ka_fark(tareekh(2025, 1, 1), tareekh(2025, 12, 25)));
+dikhao(din_ka_naam(tareekh(2000, 1, 1)));
+pakdo { tareekh(2025, 2, 30); } chhoddo (e) { dikhao(e); }
+dikhao(prakar(aaj()) == "dhacha");
+dikhao(abhi().ghanta < 24);
+
+## JSON
+badlo data = {"naam": "Adarsh", "umar": 24, "shauk": ["chai", "code"], "pakka": sahi_hai_be, "x": khali};
+badlo text = json_banao(data);
+dikhao(text);
+dikhao(json_padho(text) == data);
+dikhao(json_padho(r"""[1, 2.5, "a\nb", {"k": null}]"""));
+dikhao(json_banao({"a": [1, 2]}, sundar: sahi_hai_be));
+pakdo { json_padho(r"{bad"); } chhoddo (e) { dikhao(e); }
+
+## colours (ANSI codes are kept as-is in the output)
+dikhao(length(rang_mein("ok", "hara")) > 2);
+
+## files (in a temp name, then cleaned up by overwriting)
+file_likho("target/_conformance_tmp.txt", "pehli line\n");
+file_jodo("target/_conformance_tmp.txt", "doosri line");
+dikhao(file_padho("target/_conformance_tmp.txt"));
+dikhao(file_hai("target/_conformance_tmp.txt"));
+dikhao(file_hai("nahi_hai.txt"));
+
+## tests
+jaancho(2 + 2 == 4, "math theek hai");
+pakdo { jaancho(1 > 2, "ek do se bada nahi"); } chhoddo (e) { dikhao(e); }

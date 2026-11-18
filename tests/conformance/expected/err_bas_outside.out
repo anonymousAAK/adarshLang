@@ -1,5 +1,6 @@
-Soch: 'bas' sirf loop (jabtak / ginnati / ke_liye) ke andar chal sakta hai.
+Soch [E005]: 'bas' sirf loop (jabtak / ginnati / ke_liye / karo) ke andar chal sakta hai.
   --> err_bas_outside.aak:6:1
    |
  6 | bas;
    | ^
+  Aur jaankari: adarsh samjhao E005

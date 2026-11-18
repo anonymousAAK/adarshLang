@@ -43,6 +43,15 @@ pub fn register_source(name: &str, text: &str) -> u32 {
     })
 }
 
+thread_local! {
+    static ENGLISH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Also show a short English title under Hinglish errors (`adarsh --english`).
+pub fn set_english(on: bool) {
+    ENGLISH.with(|e| e.set(on));
+}
+
 fn source(file: u32) -> Option<Rc<SourceFile>> {
     SOURCES.with(|s| s.borrow().get(file as usize).cloned())
 }
@@ -57,6 +66,10 @@ pub enum ErrorKind {
     Runtime,
     /// A value thrown with `chhoddo(...)` that nobody caught.
     Thrown,
+    /// Not an error: something worth a look (unused variable, unreachable code).
+    Warning,
+    /// `band_karo(code)`: stop the program. Not catchable by `pakdo`.
+    Exit(i32),
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +79,10 @@ pub struct ErrorInfo {
     pub pos: Option<Pos>,
     /// The value passed to `chhoddo` (only for `ErrorKind::Thrown`).
     pub thrown: Option<Value>,
+    /// Stable code such as `E001`, explained by `adarsh samjhao E001`.
+    pub code: Option<&'static str>,
+    /// Function calls the error passed through, innermost first.
+    pub trace: Vec<(String, Pos)>,
 }
 
 /// Boxed so `Result<Value, AdarshError>` stays small: every interpreter frame
@@ -88,7 +105,14 @@ impl std::ops::DerefMut for AdarshError {
 
 impl AdarshError {
     pub fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
-        AdarshError(Box::new(ErrorInfo { kind, message: message.into(), pos: None, thrown: None }))
+        AdarshError(Box::new(ErrorInfo {
+            kind,
+            message: message.into(),
+            pos: None,
+            thrown: None,
+            code: None,
+            trace: Vec::new(),
+        }))
     }
     pub fn syntax(message: impl Into<String>, pos: Pos) -> Self {
         AdarshError::new(ErrorKind::Syntax, message).at(pos)
@@ -101,7 +125,14 @@ impl AdarshError {
     }
     pub fn thrown(value: Value) -> Self {
         let message = crate::value::display(&value);
-        AdarshError(Box::new(ErrorInfo { kind: ErrorKind::Thrown, message, pos: None, thrown: Some(value) }))
+        AdarshError(Box::new(ErrorInfo {
+            kind: ErrorKind::Thrown,
+            message,
+            pos: None,
+            thrown: Some(value),
+            code: None,
+            trace: Vec::new(),
+        }))
     }
 
     /// Attach a position unless a more precise (inner) one is already set.
@@ -112,6 +143,18 @@ impl AdarshError {
         self
     }
 
+    pub fn with_code(mut self, code: &'static str) -> Self {
+        if self.code.is_none() {
+            self.code = Some(code);
+        }
+        self
+    }
+
+    /// Can `pakdo` catch this?
+    pub fn catchable(&self) -> bool {
+        matches!(self.kind, ErrorKind::Runtime | ErrorKind::Thrown)
+    }
+
     /// Hinglish label shown before the message.
     pub fn label(&self) -> &'static str {
         match self.kind {
@@ -119,12 +162,26 @@ impl AdarshError {
             ErrorKind::Semantic => "Soch",
             ErrorKind::Runtime => "Galti",
             ErrorKind::Thrown => "Pakda nahi gaya",
+            ErrorKind::Warning => "Dhyan do",
+            ErrorKind::Exit(_) => "Band",
         }
     }
 
     /// Full multi-line rendering with file, line, column and a caret.
     pub fn render(&self) -> String {
-        let mut out = format!("{}: {}", self.label(), self.message);
+        let code = self.code.map(|c| format!(" [{c}]")).unwrap_or_default();
+        let mut out = format!("{}{code}: {}", self.label(), self.message);
+        if ENGLISH.with(|e| e.get()) {
+            let title = self.code.and_then(crate::explain::find).map(|x| x.title_en).unwrap_or(match self.kind {
+                ErrorKind::Syntax => "Syntax error",
+                ErrorKind::Semantic => "Error found before running",
+                ErrorKind::Runtime => "Runtime error",
+                ErrorKind::Thrown => "Uncaught error",
+                ErrorKind::Warning => "Warning",
+                ErrorKind::Exit(_) => "Exit",
+            });
+            out.push_str(&format!("\n  (English: {title})"));
+        }
         let Some(pos) = self.pos else { return out };
         let Some(src) = source(pos.file) else { return out };
         out.push_str(&format!("\n  --> {}:{}:{}", src.name, pos.line, pos.col));
@@ -137,6 +194,21 @@ impl AdarshError {
                 .map(|c| if c == '\t' { '\t' } else { ' ' })
                 .collect();
             out.push_str(&format!("\n {pad} |\n {num} | {line_text}\n {pad} | {caret_pad}^"));
+        }
+        if !self.trace.is_empty() {
+            out.push_str("\n  Kaise pahunche (call chain):");
+            for (name, p) in self.trace.iter().take(8) {
+                let file = source(p.file).map(|s| s.name.to_string()).unwrap_or_default();
+                out.push_str(&format!("\n    '{name}' ko call kiya: {file}:{}:{}", p.line, p.col));
+            }
+            if self.trace.len() > 8 {
+                out.push_str(&format!("\n    ... aur {} calls", self.trace.len() - 8));
+            }
+        }
+        if let Some(c) = self.code {
+            if self.kind != ErrorKind::Warning {
+                out.push_str(&format!("\n  Aur jaankari: adarsh samjhao {c}"));
+            }
         }
         out
     }

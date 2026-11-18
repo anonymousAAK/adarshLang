@@ -1,13 +1,35 @@
 // Runs AdarshLang programs off the main thread, so an infinite loop can be
 // stopped by terminating this worker.
 let wasm = null;
-const ready = fetch('adarshlang.wasm')
-  .then((r) => r.arrayBuffer())
-  .then((bytes) => WebAssembly.instantiate(bytes, {}))
-  .then(({ instance }) => { wasm = instance.exports; });
-
 const enc = new TextEncoder();
 const dec = new TextDecoder();
+
+// Functions the interpreter calls back into (see adarsh-rs/src/wasm.rs).
+const env = {
+  host_now: () => Date.now(),
+  host_tz: () => -new Date().getTimezoneOffset(),
+  host_sleep: (ms) => {
+    // ruko(): block this worker (never the page) for up to 10 seconds
+    const until = Date.now() + Math.min(ms, 10000);
+    if (typeof SharedArrayBuffer !== 'undefined' && typeof Atomics !== 'undefined') {
+      try {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.max(0, until - Date.now()));
+        return;
+      } catch (e) { /* fall back to spinning */ }
+    }
+    while (Date.now() < until) { /* spin */ }
+  },
+  host_write: (ptr, len) => {
+    // live output while the program runs
+    const text = dec.decode(new Uint8Array(wasm.memory.buffer, ptr, len).slice());
+    self.postMessage({ chunk: text });
+  },
+};
+
+const ready = fetch('adarshlang.wasm')
+  .then((r) => r.arrayBuffer())
+  .then((bytes) => WebAssembly.instantiate(bytes, { env }))
+  .then(({ instance }) => { wasm = instance.exports; });
 
 function put(text) {
   const bytes = enc.encode(text);
@@ -32,10 +54,11 @@ self.onmessage = async (e) => {
     wasm.dealloc(sp, sl || 1);
     wasm.dealloc(ip, il || 1);
     const res = new Uint8Array(wasm.memory.buffer, wasm.result_ptr(), wasm.result_len());
-    const text = dec.decode(res.slice());
-    const cut = text.indexOf('\u0000');
-    self.postMessage({ output: text.slice(0, cut), error: text.slice(cut + 1) || null, ms });
+    const parts = dec.decode(res.slice()).split('\u0000');
+    let turtle = [];
+    try { turtle = JSON.parse(parts[2] || '[]'); } catch (err) { turtle = []; }
+    self.postMessage({ done: true, output: parts[0], error: parts[1] || null, turtle, ms });
   } catch (err) {
-    self.postMessage({ output: '', error: 'Playground error: ' + err.message, ms: 0 });
+    self.postMessage({ done: true, output: '', error: 'Playground error: ' + err.message, turtle: [], ms: 0 });
   }
 };

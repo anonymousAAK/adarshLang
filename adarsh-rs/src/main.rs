@@ -18,10 +18,16 @@ Usage:
   adarsh <file.aak>              program chalao (run a program)
   adarsh run <file.aak>          same as above
   adarsh check <file.aak>        sirf galtiyan dhundo, chalao mat (check only)
+  adarsh test [files/folders]    *_test.aak files mein test_* functions chalao
+  adarsh samjhao [E001]          error code ka matlab aur example
+  adarsh python <file.aak>       wahi program Python mein dekho
   adarsh build <file.aak> [-o out]
                                  standalone executable banao (no install needed to run it)
   adarsh repl                    interactive REPL
   adarsh --version
+
+Options (kisi bhi command ke saath):
+  --english                      errors ke saath English title bhi dikhao
 ";
 
 fn stdin_input() -> Box<dyn FnMut() -> Option<String>> {
@@ -35,21 +41,40 @@ fn stdin_input() -> Box<dyn FnMut() -> Option<String>> {
 }
 
 fn run_source(name: &str, source: &str, loader: Rc<dyn ModuleLoader>) -> ExitCode {
-    let out = BufWriter::with_capacity(64 * 1024, std::io::stdout());
-    let result = adarshlang::check(name, source, loader.clone()).and_then(|program| {
-        let mut interp = adarshlang::Interpreter::new(loader, Box::new(out));
-        interp.input = stdin_input();
-        let r = interp.run(&program).map(|_| ());
-        interp.flush();
-        r
-    });
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
+    let (program, warnings) = match adarshlang::check_with_warnings(name, source, loader.clone()) {
+        Ok(p) => p,
         Err(e) => {
-            let _ = std::io::stdout().flush();
             eprintln!("{}", e.render());
-            ExitCode::from(1)
+            return ExitCode::from(1);
         }
+    };
+    if std::env::var_os("ADARSH_NO_WARNINGS").is_none() {
+        for w in &warnings {
+            eprintln!("{}", w.render());
+        }
+    }
+    let out = BufWriter::with_capacity(64 * 1024, std::io::stdout());
+    let mut interp = adarshlang::Interpreter::new(loader, Box::new(out));
+    interp.input = stdin_input();
+    let r = interp.run(&program);
+    interp.flush();
+    if let Some(svg) = (!interp.turtle.lines.is_empty()).then(|| interp.turtle.svg()) {
+        let path = Path::new(name).with_extension("svg");
+        match std::fs::write(&path, svg) {
+            Ok(()) => eprintln!("Kachhua ki drawing save hui: {}", path.display()),
+            Err(e) => eprintln!("Kachhua ki drawing save nahi hui: {e}"),
+        }
+    }
+    match r {
+        Ok(_) => ExitCode::SUCCESS,
+        Err(e) => match e.kind {
+            adarshlang::ErrorKind::Exit(code) => ExitCode::from(code as u8),
+            _ => {
+                let _ = std::io::stdout().flush();
+                eprintln!("{}", e.render());
+                ExitCode::from(1)
+            }
+        },
     }
 }
 
@@ -326,13 +351,131 @@ fn cmd_repl() -> ExitCode {
     ExitCode::SUCCESS
 }
 
+fn cmd_samjhao(code: Option<&str>) -> ExitCode {
+    match code {
+        None => {
+            println!("Error codes (adarsh samjhao <code>):\n");
+            for e in adarshlang::explain::EXPLANATIONS {
+                println!("  {}  {} ({})", e.code, e.title_hi, e.title_en);
+            }
+            ExitCode::SUCCESS
+        }
+        Some(c) => match adarshlang::explain::find(c) {
+            Some(e) => {
+                print!("{}", adarshlang::explain::render(e));
+                ExitCode::SUCCESS
+            }
+            None => {
+                eprintln!("'{c}' naam ka error code nahi mila. Saare codes: adarsh samjhao");
+                ExitCode::from(2)
+            }
+        },
+    }
+}
+
+fn collect_test_files(path: &Path, out: &mut Vec<PathBuf>) {
+    if path.is_dir() {
+        let Ok(entries) = std::fs::read_dir(path) else { return };
+        let mut entries: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+        entries.sort();
+        for p in entries {
+            let hidden = p.file_name().is_some_and(|n| n.to_string_lossy().starts_with('.'));
+            if p.is_dir() && !hidden && !p.ends_with("target") {
+                collect_test_files(&p, out);
+            } else if p.to_string_lossy().ends_with("_test.aak") {
+                out.push(p);
+            }
+        }
+    } else {
+        out.push(path.to_path_buf());
+    }
+}
+
+fn cmd_test(paths: &[&str]) -> ExitCode {
+    let mut files = Vec::new();
+    if paths.is_empty() {
+        collect_test_files(Path::new("."), &mut files);
+    } else {
+        for p in paths {
+            collect_test_files(Path::new(p), &mut files);
+        }
+    }
+    if files.is_empty() {
+        eprintln!(
+            "Koi test file nahi mili. Test files ka naam '_test.aak' par khatam hona chahiye (jaise math_test.aak)."
+        );
+        return ExitCode::from(2);
+    }
+    let (mut pass, mut fail) = (0, 0);
+    for f in files {
+        let name = f.to_string_lossy().to_string();
+        let src = match std::fs::read_to_string(&f) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("{name}: nahi padh paaye: {e}");
+                fail += 1;
+                continue;
+            }
+        };
+        println!("{name}");
+        for t in adarshlang::run_tests(&name, &src, Rc::new(FsLoader::new(base_dir(&name)))) {
+            match t.error {
+                None => {
+                    pass += 1;
+                    println!("  ✓ {}", t.name);
+                }
+                Some(e) => {
+                    fail += 1;
+                    println!("  ✗ {}", t.name);
+                    for line in e.lines() {
+                        println!("      {line}");
+                    }
+                    if !t.output.is_empty() {
+                        println!("      output:");
+                        for line in t.output.lines() {
+                            println!("        {line}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+    println!("\n{pass} pass, {fail} fail");
+    if fail > 0 {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+fn cmd_python(path: &str) -> ExitCode {
+    let src = match read_program(path) {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    match adarshlang::check(path, &src, Rc::new(FsLoader::new(base_dir(path)))) {
+        Ok(program) => {
+            print!("{}", adarshlang::topython::translate(&program));
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("{}", e.render());
+            ExitCode::from(1)
+        }
+    }
+}
+
 // ---------------------------------------------------------------- main
 
 fn real_main(args: Vec<String>) -> ExitCode {
     if let Some(files) = embedded_bundle() {
         return run_bundle(files);
     }
-    let a: Vec<&str> = args.iter().skip(1).map(String::as_str).collect();
+    let mut a: Vec<&str> = args.iter().skip(1).map(String::as_str).collect();
+    if let Some(i) = a.iter().position(|x| *x == "--english") {
+        a.remove(i);
+        adarshlang::error::set_english(true);
+    }
     match a.as_slice() {
         [] | ["repl"] | ["--repl"] => cmd_repl(),
         ["--version" | "-V" | "version"] => {
@@ -344,6 +487,10 @@ fn real_main(args: Vec<String>) -> ExitCode {
             ExitCode::SUCCESS
         }
         ["run", file] => cmd_run(file),
+        ["samjhao"] => cmd_samjhao(None),
+        ["samjhao", code] => cmd_samjhao(Some(code)),
+        ["test", rest @ ..] => cmd_test(rest),
+        ["python", file] => cmd_python(file),
         ["check", file] => cmd_check(file),
         ["build", file] => cmd_build(file, None),
         ["build", file, "-o", out] | ["build", "-o", out, file] => cmd_build(file, Some(out)),

@@ -33,6 +33,13 @@ pub enum Tok {
     Dhacha,
     Baaki,
     Khali,
+    Pakka,
+    Karo,
+    Hai,
+    Vikalp,
+    DeteRaho,
+    Aakhir,
+    As,
     // operators
     Plus,
     Minus,
@@ -65,6 +72,12 @@ pub enum Tok {
     RBrace,
     LBracket,
     RBracket,
+    DotDot,
+    Ellipsis,
+    QDot,
+    QQ,
+    IntDiv,
+    Arrow,
 }
 
 impl Tok {
@@ -99,6 +112,13 @@ impl Tok {
             Dhacha => "dhacha",
             Baaki => "baaki",
             Khali => "khali",
+            Pakka => "pakka",
+            Karo => "karo",
+            Hai => "hai",
+            Vikalp => "vikalp",
+            DeteRaho => "dete_raho",
+            Aakhir => "aakhir",
+            As => "as",
             Plus => "+",
             Minus => "-",
             Mul => "*",
@@ -130,6 +150,12 @@ impl Tok {
             RBrace => "}",
             LBracket => "[",
             RBracket => "]",
+            DotDot => "..",
+            Ellipsis => "...",
+            QDot => "?.",
+            QQ => "??",
+            IntDiv => "//",
+            Arrow => "=>",
         }
     }
 
@@ -179,8 +205,65 @@ fn keyword(s: &str) -> Option<Tok> {
         "aur" => Aur,
         "ya" => Ya,
         "nahin" => Nahin,
-        _ => return None,
+        "pakka" => Pakka,
+        "karo" => Karo,
+        "hai" => Hai,
+        "vikalp" => Vikalp,
+        "dete_raho" => DeteRaho,
+        "aakhir" => Aakhir,
+        "as" => As,
+        _ => return devanagari_keyword(s),
     })
+}
+
+/// Devanagari spellings of the keywords: `दिखाओ("नमस्ते");` works like `dikhao("नमस्ते");`.
+const DEVANAGARI_KEYWORDS: &[(&str, Tok)] = &[
+    ("बदलो", Tok::Badlo),
+    ("काम", Tok::Kaam),
+    ("वापस", Tok::Wapas),
+    ("अगर", Tok::Agar),
+    ("वरना", Tok::Warna),
+    ("जबतक", Tok::Jabtak),
+    ("दिखाओ", Tok::Dikhao),
+    ("बस", Tok::Bas),
+    ("आगे_बढ़ो", Tok::AageBadho),
+    ("सही", Tok::SahiHaiBe),
+    ("झूठ", Tok::Jhuth),
+    ("गिनती", Tok::Ginnati),
+    ("के_लिए", Tok::KeLiye),
+    ("चुनो", Tok::Chuno),
+    ("पकड़ो", Tok::Pakdo),
+    ("छोड़ो", Tok::Chhoddo),
+    ("लाओ", Tok::Lao),
+    ("ढांचा", Tok::Dhacha),
+    ("बाकी", Tok::Baaki),
+    ("खाली", Tok::Khali),
+    ("और", Tok::Aur),
+    ("या", Tok::Ya),
+    ("नहीं", Tok::Nahin),
+    ("पक्का", Tok::Pakka),
+    ("करो", Tok::Karo),
+    ("है", Tok::Hai),
+    ("आखिर", Tok::Aakhir),
+];
+
+/// Decompose nukta letters so `ड़` typed either way matches.
+fn normalize_devanagari(s: &str) -> String {
+    s.replace('\u{095C}', "\u{0921}\u{093C}")
+        .replace('\u{095D}', "\u{0922}\u{093C}")
+        .replace('\u{0958}', "\u{0915}\u{093C}")
+}
+
+fn devanagari_keyword(s: &str) -> Option<Tok> {
+    if s.is_ascii() {
+        return None;
+    }
+    let n = normalize_devanagari(s);
+    DEVANAGARI_KEYWORDS.iter().find(|(k, _)| normalize_devanagari(k) == n).map(|(_, t)| *t)
+}
+
+fn is_devanagari(c: char) -> bool {
+    ('\u{0900}'..='\u{097F}').contains(&c)
 }
 
 fn single_op(c: char) -> Option<Tok> {
@@ -224,6 +307,11 @@ fn multi_op(a: char, b: char) -> Option<Tok> {
         ('>', '=') => Gte,
         ('&', '&') => Aur,
         ('|', '|') => Ya,
+        ('.', '.') => DotDot,
+        ('?', '.') => QDot,
+        ('?', '?') => QQ,
+        ('/', '/') => IntDiv,
+        ('=', '>') => Arrow,
         _ => return None,
     })
 }
@@ -252,6 +340,8 @@ pub struct Token {
     pub pos: Pos,
     /// Position just after the token's last character.
     pub end: Pos,
+    /// `## doc comment` lines directly above this token.
+    pub doc: Option<String>,
 }
 
 impl Token {
@@ -270,6 +360,7 @@ pub struct Lexer {
     col: u32,
     file: u32,
     last: Tok,
+    pending_doc: Option<String>,
 }
 
 impl Lexer {
@@ -286,6 +377,7 @@ impl Lexer {
             col: start.col,
             file: start.file,
             last: Tok::Eof,
+            pending_doc: None,
         }
     }
 
@@ -366,21 +458,39 @@ impl Lexer {
                 Err(_) => TokValue::BigInt(s.parse::<BigInt>().unwrap_or_default()),
             }
         };
-        Ok(Token { ty: Tok::Number, value, pos, end: Pos::default() })
+        Ok(Token { ty: Tok::Number, value, pos, end: Pos::default(), doc: None })
     }
 
     fn string(&mut self) -> Result<Token, AdarshError> {
         let pos = self.pos();
+        let triple = self.peek(1) == Some('"') && self.peek(2) == Some('"');
         self.advance(); // opening quote
+        if triple {
+            self.advance();
+            self.advance();
+            // a newline right after the opening quotes is not part of the text
+            if self.cur() == Some('\n') {
+                self.advance();
+            }
+        }
         let mut parts: Vec<RawPart> = Vec::new();
         let mut lit = String::new();
         loop {
             let Some(c) = self.cur() else {
-                return Err(AdarshError::syntax("String band nahi hui: closing \" missing hai.", pos));
+                let what = if triple { "\"\"\"" } else { "\"" };
+                return Err(AdarshError::syntax(format!("String band nahi hui: closing {what} missing hai."), pos));
             };
             match c {
+                '"' if triple && !(self.peek(1) == Some('"') && self.peek(2) == Some('"')) => {
+                    lit.push('"');
+                    self.advance();
+                }
                 '"' => {
                     self.advance();
+                    if triple {
+                        self.advance();
+                        self.advance();
+                    }
                     break;
                 }
                 '\\' => {
@@ -412,7 +522,7 @@ impl Lexer {
                     loop {
                         let Some(c) = self.cur() else {
                             return Err(AdarshError::syntax(
-                                "String ke andar '{' band nahi hua: '}' missing hai.",
+                                "String ke andar '{' band nahi hua: '}' missing hai. Agar '{' text ka hissa hai to \\{ likho, ya raw string r\"...\" use karo (usmein {} interpolation nahi hota).",
                                 open,
                             ));
                         };
@@ -465,47 +575,91 @@ impl Lexer {
             }
         }
         if parts.is_empty() {
-            return Ok(Token { ty: Tok::Str, value: TokValue::Text(lit), pos, end: Pos::default() });
+            return Ok(Token { ty: Tok::Str, value: TokValue::Text(lit), pos, end: Pos::default(), doc: None });
         }
         if !lit.is_empty() {
             parts.push(RawPart::Lit(lit));
         }
-        Ok(Token { ty: Tok::Str, value: TokValue::Interp(parts), pos, end: Pos::default() })
+        Ok(Token { ty: Tok::Str, value: TokValue::Interp(parts), pos, end: Pos::default(), doc: None })
+    }
+
+    /// `r"..."` / `r"""..."""`: no escapes, no interpolation (good for JSON, regex, paths).
+    fn raw_string(&mut self) -> Result<Token, AdarshError> {
+        let pos = self.pos();
+        self.advance(); // r
+        let triple = self.peek(1) == Some('"') && self.peek(2) == Some('"');
+        let quotes = if triple { 3 } else { 1 };
+        for _ in 0..quotes {
+            self.advance();
+        }
+        if triple && self.cur() == Some('\n') {
+            self.advance();
+        }
+        let mut lit = String::new();
+        loop {
+            match self.cur() {
+                None => return Err(AdarshError::syntax("Raw string band nahi hui: closing quote missing hai.", pos)),
+                Some('"') if !triple || (self.peek(1) == Some('"') && self.peek(2) == Some('"')) => {
+                    for _ in 0..quotes {
+                        self.advance();
+                    }
+                    break;
+                }
+                Some(c) => {
+                    lit.push(c);
+                    self.advance();
+                }
+            }
+        }
+        Ok(Token { ty: Tok::Str, value: TokValue::Text(lit), pos, end: Pos::default(), doc: None })
     }
 
     fn identifier(&mut self) -> Token {
         let pos = self.pos();
         let mut s = String::new();
         while let Some(c) = self.cur() {
-            if !(c.is_alphanumeric() || c == '_') {
+            if !(c.is_alphanumeric() || c == '_' || is_devanagari(c)) {
                 break;
             }
             s.push(c);
             self.advance();
         }
         let ty = keyword(&s).unwrap_or(Tok::Ident);
-        Token { ty, value: TokValue::Text(s), pos, end: Pos::default() }
+        Token { ty, value: TokValue::Text(s), pos, end: Pos::default(), doc: None }
     }
 
     fn operator(&mut self) -> Result<Token, AdarshError> {
         let pos = self.pos();
         let c = self.cur().unwrap();
+        if c == '.' && self.peek(1) == Some('.') && self.peek(2) == Some('.') {
+            for _ in 0..3 {
+                self.advance();
+            }
+            return Ok(Token {
+                ty: Tok::Ellipsis,
+                value: TokValue::Text("...".into()),
+                pos,
+                end: Pos::default(),
+                doc: None,
+            });
+        }
         if let Some(n) = self.peek(1) {
             if let Some(ty) = multi_op(c, n) {
                 self.advance();
                 self.advance();
-                return Ok(Token { ty, value: TokValue::Text(format!("{c}{n}")), pos, end: Pos::default() });
+                return Ok(Token { ty, value: TokValue::Text(format!("{c}{n}")), pos, end: Pos::default(), doc: None });
             }
         }
         match single_op(c) {
             Some(ty) => {
                 self.advance();
-                Ok(Token { ty, value: TokValue::Text(c.to_string()), pos, end: Pos::default() })
+                Ok(Token { ty, value: TokValue::Text(c.to_string()), pos, end: Pos::default(), doc: None })
             }
             None => {
                 let hint = match c {
                     '&' => " 'aur' ya '&&' likho.",
                     '|' => " 'ya' ya '||' likho.",
+                    '?' => " '?.' (khali-safe field) ya '??' (default value) likho.",
                     _ => "",
                 };
                 Err(AdarshError::syntax(format!("Anjaan character '{c}'.{hint}"), pos))
@@ -519,26 +673,61 @@ impl Lexer {
                 self.advance();
                 continue;
             }
-            if c == '#' {
-                while self.cur().is_some_and(|c| c != '\n') {
-                    self.advance();
+            if c == '#' && self.peek(1) == Some('[') {
+                let start = self.pos();
+                self.advance();
+                self.advance();
+                loop {
+                    match self.cur() {
+                        None => {
+                            return Err(AdarshError::syntax(
+                                "Block comment '#[' band nahi hua: ']#' missing hai.",
+                                start,
+                            ))
+                        }
+                        Some(']') if self.peek(1) == Some('#') => {
+                            self.advance();
+                            self.advance();
+                            break;
+                        }
+                        Some(_) => self.advance(),
+                    }
                 }
                 continue;
             }
-            let tok = if c == '"' {
+            if c == '#' {
+                let doc = self.peek(1) == Some('#');
+                let mut text = String::new();
+                while self.cur().is_some_and(|c| c != '\n') {
+                    text.push(self.cur().unwrap());
+                    self.advance();
+                }
+                if doc {
+                    let line = text.trim_start_matches('#').trim().to_string();
+                    let d = self.pending_doc.get_or_insert_with(String::new);
+                    if !d.is_empty() {
+                        d.push('\n');
+                    }
+                    d.push_str(&line);
+                }
+                continue;
+            }
+            let tok = if c == 'r' && self.peek(1) == Some('"') {
+                self.raw_string()?
+            } else if c == '"' {
                 self.string()?
             } else if c.is_ascii_digit()
                 || (c == '.' && self.peek(1).is_some_and(|d| d.is_ascii_digit()) && !self.last.ends_value())
             {
                 self.number()?
-            } else if c.is_alphabetic() || c == '_' {
+            } else if c.is_alphabetic() || c == '_' || is_devanagari(c) {
                 self.identifier()
             } else {
                 self.operator()?
             };
             return Ok(tok);
         }
-        Ok(Token { ty: Tok::Eof, value: TokValue::None, pos: self.pos(), end: Pos::default() })
+        Ok(Token { ty: Tok::Eof, value: TokValue::None, pos: self.pos(), end: Pos::default(), doc: None })
     }
 
     pub fn tokenize(mut self) -> Result<Vec<Token>, AdarshError> {
@@ -546,6 +735,7 @@ impl Lexer {
         loop {
             let mut t = self.next_token()?;
             t.end = self.pos();
+            t.doc = self.pending_doc.take();
             self.last = t.ty;
             let eof = t.ty == Tok::Eof;
             out.push(t);

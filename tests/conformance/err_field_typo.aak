@@ -1,0 +1,2 @@
+dhacha Vyakti { naam, umar };
+badlo p = Vyakti { naam: "A", umr: 5 };

@@ -1205,6 +1205,7 @@ function getWorker() {
 
 // Runs code in a Web Worker (the Rust interpreter compiled to WebAssembly).
 // A program that runs too long is stopped by terminating the worker.
+var onChunk = null;
 function runInWorker(code, input) {
   return new Promise(function (resolve, reject) {
     var w = getWorker();
@@ -1212,7 +1213,11 @@ function runInWorker(code, input) {
       w.terminate(); worker = null;
       reject(new Error('Galti: Program ' + (TIME_LIMIT_MS / 1000) + ' second se zyada chala, isliye roka gaya. Shayad koi infinite loop hai?'));
     }, TIME_LIMIT_MS);
-    w.onmessage = function (e) { if (e.data.ready) return; clearTimeout(timer); resolve(e.data); };
+    w.onmessage = function (e) {
+      if (e.data.ready) return;
+      if (e.data.chunk !== undefined) { if (onChunk) onChunk(e.data.chunk); return; }
+      clearTimeout(timer); resolve(e.data);
+    };
     w.onerror = function (e) { clearTimeout(timer); worker = null; reject(new Error('Playground error: ' + e.message)); };
     w.postMessage({ code: code, input: input });
   });
@@ -1229,7 +1234,9 @@ async function runCode(event) {
   card.style.display = 'block';
   label.textContent = 'Output'; dot.className = 'dot';
   try {
+    onChunk = function (text) { pre.textContent += text; };
     var data = await runInWorker(editor.value, document.getElementById('stdin').value);
+    onChunk = null;
     if (data.error) {
       pre.className = 'error-output'; label.textContent = 'Error'; dot.className = 'dot err';
       pre.textContent = (data.output ? data.output + '\n' : '') + data.error;

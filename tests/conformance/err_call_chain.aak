@@ -1,0 +1,4 @@
+kaam a(n) { wapas b(n); }
+kaam b(n) { wapas c(n); }
+kaam c(n) { wapas n / 0; }
+dikhao(a(1));

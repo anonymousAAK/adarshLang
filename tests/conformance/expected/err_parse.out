@@ -1,5 +1,6 @@
-Samjho: Line ke ant mein ';' missing hai.
+Samjho [E101]: Line ke ant mein ';' missing hai.
   --> err_parse.aak:4:12
    |
  4 | badlo x = 5
    |            ^
+  Aur jaankari: adarsh samjhao E101

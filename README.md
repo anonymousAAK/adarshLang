@@ -38,122 +38,46 @@ cargo install --git https://github.com/anonymousAAK/adarshLang adarshlang
 adarsh hello.aak                 # run a program
 adarsh                           # interactive REPL (history, multi-line input)
 adarsh check hello.aak           # find errors without running
+adarsh test                      # run test_* functions in *_test.aak files
+adarsh samjhao E011              # explain an error code
+adarsh python hello.aak          # see the same program in Python
 adarsh build hello.aak -o hello  # standalone executable; runs without AdarshLang installed
 ```
 
-## The language
-
-### Basics
-
-| | Syntax |
-| --- | --- |
-| Variable | `badlo x = 10;` (then `x = 11;`) |
-| Print | `dikhao(x);` |
-| Booleans / null | `sahi_hai_be`, `jhuth`, `khali` |
-| Numbers | `42`, `3.14`, `.5`, `1e6`, `1_000_000`; integers never overflow |
-| Strings | `"Namaste"` with escapes `\n \t \" \\ \{ \}` |
-| Interpolation | `"Naam: {naam}, total: {a + b}"` |
-| Comments | `# yeh comment hai` |
-| Input | `badlo naam = padho("Aapka naam? ");` (returns `khali` at end of input) |
-
-### Operators
-
-| | |
-| --- | --- |
-| Arithmetic | `+ - * / % **` (`/` always gives a decimal; `%` follows the divisor's sign) |
-| Comparison | `== != < > <= >=` |
-| Logic | `aur`, `ya`, `nahin` (or `&&`, `||`, `!`), short-circuit |
-| Compound | `+= -= *= /= %=` on variables, `list[i]` and `obj.field` |
-| Strings / lists | `"ab" + "cd"`, `"ab" * 3`, `[1] + [2]`, `[0] * 5` |
-
-### Control flow
+## The language at a glance
 
 ```aak
-agar (marks >= 90) { dikhao("A"); } warna agar (marks >= 75) { dikhao("B"); } warna { dikhao("C"); }
+pakka GST = 0.18;
+dhacha Cheez { naam, daam = 0 };
+kaam Cheez.shabd() { wapas "{yeh.naam} ({rupaye(yeh.daam)})"; }
 
-jabtak (n > 0) { n -= 1; }                         # while
-ginnati (badlo i = 0; i < 5; i += 1) { dikhao(i); } # for
-ke_liye (badlo x in [1, 2, 3]) { dikhao(x); }      # for-each over lists, strings, dict keys
-bas;          # break
-aage_badho;   # continue
+badlo tokri = [Cheez { naam: "Chai", daam: 20 }, Cheez { naam: "Samosa", daam: 15 }];
+ke_liye (badlo i, c in tokri) { dikhao("{i + 1}. {c}"); }
 
-chuno (din) {
-    case "shanivaar", "ravivaar": dikhao("Chhutti!");
-    case "somvaar":
-        dikhao("Kaam shuru");
-        dikhao("Chai lo");
-    warna_case: dikhao("Normal din");
-}
+badlo kul = tokri.map(c => c.daam).sum();
+dikhao("Kul: {rupaye(kul * (1 + GST))}");
+dikhao(agar (kul > 30) "bada order" warna "chhota order");
 ```
-
-### Functions
-
-```aak
-kaam jodo(a, b = 10) { wapas a + b; }    # default arguments
-kaam total(baaki nums) { wapas reduce(kaam (x, y) { wapas x + y; }, nums, 0); }  # varargs
-badlo double = kaam (x) { wapas x * 2; }; # anonymous function / closure
-dikhao(map(double, [1, 2, 3]));            # [2, 4, 6]
-```
-
-Functions can be called before the line that defines them, can be nested, and capture variables (closures).
-A function without `wapas` returns `khali`.
-
-### Data
-
-```aak
-badlo xs = [3, 1, 2];   xs[0] = 5;   push(xs, 4);   dikhao(xs[-1]);
-badlo d = {"naam": "Adarsh", "umar": 24};   d["shahar"] = "Indore";   hatao(d, "umar");
-dikhao(d.naam);         # dict keys can also be read as fields
-
-dhacha Vyakti { naam, umar };             # record type
-badlo p = Vyakti { naam: "Adarsh" };      # missing fields are khali
-kaam Vyakti.badhao() { yeh.umar += 1; }   # method; `yeh` is the record
-```
-
-### Errors
-
-```aak
-pakdo {
-    dikhao(10 / 0);
-} chhoddo (err) {
-    dikhao("Pakda: {err}");      # Pakda: Zero se divide nahi kar sakte.
-}
-chhoddo("Kuch galat hua");      # throw any value
-```
-
-`pakdo` catches values thrown with `chhoddo` as well as runtime errors.
-Uncaught errors show the file, line and column:
 
 ```text
-Galti: String mein sirf string jod sakte ho, yahan string + number hai. Interpolation "..{x}.." ya shabdme() use karo.
-  --> main.aak:2:10
-   |
- 2 | dikhao(a + 1);
-   |          ^
+1. Chai (₹20.00)
+2. Samosa (₹15.00)
+Kul: ₹41.30
+bada order
 ```
 
-The label tells you when the error was found:
-- `Samjho`: the syntax is wrong.
-- `Soch`: checks before running found a problem.
-- `Galti`: an error while running.
-- `Pakda nahi gaya`: a `chhoddo` value nobody caught.
-
-### Modules
-
-```aak
-lao "utils";   # runs utils.aak (relative to this file) once
-```
-
-### Builtins
-
-| Area | Functions |
+| Area | What you get |
 | --- | --- |
-| Lists | `length push pop sort reverse slice contains find map filter reduce range join` |
-| Dicts | `keys values rakho nikalo hatao contains` |
-| Strings | `upper lower trim split replace find slice reverse length` |
-| Numbers | `abs floor ceil round_val min_val max_val random_number` |
-| Types | `prakar` (type name) · `shabdme` (to string) · `sankhya` (to number) |
-| Other | `padho` (input) · `current_time` |
+| Basics | `badlo` / `pakka` constants, numbers that never overflow, strings with `{interpolation:.2}`, raw `r"..."` and `"""multi-line"""` strings, Devanagari keywords |
+| Control flow | `agar` / `warna`, inline `agar (c) a warna b`, `jabtak`, `karo ... jabtak`, `ginnati`, `ke_liye (badlo i, x in xs)`, ranges `1..10`, labelled `bas` / `aage_badho` |
+| Matching | `chuno` with values, ranges (`case 90..100:`), types, list shapes (`case [pehla, ...rest]:`) and `agar` guards |
+| Functions | defaults, named arguments, `baaki` / `...` varargs, spread, lambdas `x => x * 2`, closures, generators with `dete_raho`, dot-calls `xs.sort()` |
+| Data | lists, dicts, tuples, sets, slices `xs[1:3]` / `[::-1]`, destructuring `badlo [a, b] = ...`, `in`, `?.` and `??` |
+| Types | `dhacha` records with defaults, inheritance, methods, custom printing and operator methods; `vikalp` enums; `x hai number`; optional annotations `badlo umar: number` |
+| Errors | `pakdo` / `chhoddo` / `aakhir`, typed catches, Hinglish messages with line, column, call chain, "did you mean?" and error codes |
+| Library | 100+ builtins: math, strings, lists, sets, dates, JSON, files, internet, random, Indian number formats (`15,00,000`, `₹99.50`, "ek sau pachchees"), turtle graphics |
+
+**Full reference: [docs/REFERENCE.md](docs/REFERENCE.md)**
 
 ## Project layout
 

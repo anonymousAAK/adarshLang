@@ -17,7 +17,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" crossorigin="anonymous">
 <link rel="preload" href="adarshlang.wasm" as="fetch" type="application/wasm" crossorigin>
 <style>
   :root {
@@ -189,6 +189,118 @@
     .gutter { font-size: 13px; }
   }
   @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+  /* ---------- syntax colours */
+  :root { --t-k: #0f6b4f; --t-s: #9a5b00; --t-n: #3456c8; --t-c: #7c818a; --t-f: #7a3fb0; --t-b: #c23a48; --t-t: #1f7a8c; --line-hl: rgba(15,107,79,.10); }
+  html[data-theme="dark"] { --t-k: #3ddc97; --t-s: #f2b33d; --t-n: #7aa2ff; --t-c: #7f858f; --t-f: #c792ea; --t-b: #ff6b7a; --t-t: #5cc8d8; --line-hl: rgba(61,220,151,.12); }
+  .t-k { color: var(--t-k); font-weight: 500; }
+  .t-s, .t-i { color: var(--t-s); }
+  .t-i { font-weight: 600; }
+  .t-n { color: var(--t-n); }
+  .t-c { color: var(--t-c); font-style: italic; }
+  .t-doc { color: var(--t-c); }
+  .t-f { color: var(--t-f); }
+  .t-b { color: var(--t-b); }
+  .t-t { color: var(--t-t); }
+
+  /* ---------- editor with highlight overlay */
+  .tabs { display: flex; align-items: stretch; gap: 0; border-bottom: 1px solid var(--rule); overflow-x: auto; }
+  .tab { display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; font-family: var(--font-mono); font-size: .78rem;
+    color: var(--ink-2); background: none; border: 0; border-right: 1px solid var(--rule); cursor: pointer; white-space: nowrap; }
+  .tab[aria-selected="true"] { color: var(--ink); background: var(--surface-2); }
+  .tab .x { opacity: .55; padding: 0 2px; }
+  .tab .x:hover { opacity: 1; color: var(--err); }
+  .tab-add { color: var(--accent); }
+  .tab-spacer { flex: 1; }
+  .tab-actions { display: flex; gap: 2px; padding: 4px; }
+  .icon-text { font-family: var(--font-mono); font-size: .74rem; padding: 6px 9px; border: 1px solid transparent; background: none;
+    color: var(--ink-2); border-radius: var(--radius); cursor: pointer; white-space: nowrap; }
+  .icon-text:hover { border-color: var(--rule); color: var(--ink); }
+  .code-area { position: relative; }
+  .code-area pre.hl, .code-area textarea {
+    margin: 0; padding: 16px; font-family: var(--font-mono); font-size: 14px; line-height: 1.6; tab-size: 4;
+    white-space: pre; overflow: auto; border: 0; box-sizing: border-box; font-variant-ligatures: none; letter-spacing: 0;
+  }
+  .code-area pre.hl { position: absolute; inset: 0; pointer-events: none; color: var(--ink); overflow: hidden; }
+  .code-area textarea#source_code { position: relative; color: transparent; background: transparent; caret-color: var(--ink);
+    width: 100%; min-height: 380px; resize: vertical; outline: none; z-index: 1; }
+  .code-area textarea::selection { background: rgba(52,86,200,.25); color: transparent; }
+  .hl-line { position: absolute; left: 0; right: 0; height: 22.4px; background: var(--line-hl); border-left: 3px solid var(--accent); pointer-events: none; display: none; }
+  .gutter .cur { color: var(--accent); font-weight: 600; }
+
+  /* autocomplete */
+  .ac { position: absolute; z-index: 5; min-width: 220px; max-width: 420px; background: var(--surface); border: 1px solid var(--rule-strong);
+    border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.12); font-family: var(--font-mono); font-size: 13px; display: none; }
+  .ac div { padding: 5px 10px; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; }
+  .ac div[aria-selected="true"] { background: var(--surface-2); color: var(--accent); }
+  .ac small { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
+
+  /* output extras */
+  .live-input { display: none; gap: 8px; align-items: center; padding: 0 16px 14px; }
+  .live-input input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--accent); border-radius: var(--radius);
+    background: var(--bg); color: var(--ink); font-family: var(--font-mono); font-size: 14px; }
+  #turtle-wrap { display: none; border-top: 1px solid var(--rule); padding: 12px 16px 16px; }
+  #turtle-canvas { width: 100%; height: 320px; display: block; background: var(--bg); border: 1px solid var(--rule); border-radius: var(--radius); }
+  #warnings { display: none; border-top: 1px solid var(--rule); }
+  #warnings summary { cursor: pointer; padding: 10px 16px; font-family: var(--font-mono); font-size: .78rem; color: var(--warn); }
+  #warnings pre { margin: 0; padding: 0 16px 14px; font-size: 13px; color: var(--ink-2); white-space: pre-wrap; }
+
+  /* step-through */
+  #step-panel { display: none; margin-top: 16px; }
+  .step-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 14px; }
+  .step-controls input[type=range] { flex: 1; min-width: 160px; accent-color: var(--accent); }
+  .step-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-top: 1px solid var(--rule); }
+  .step-grid > div { padding: 12px 14px; min-width: 0; }
+  .step-grid > div + div { border-left: 1px solid var(--rule); }
+  .vars { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 13px; }
+  .vars td { padding: 3px 6px; border-bottom: 1px solid var(--rule); vertical-align: top; word-break: break-word; }
+  .vars td:first-child { color: var(--accent); white-space: nowrap; }
+  #step-output { margin: 0; font-size: 13px; white-space: pre-wrap; color: var(--ink); max-height: 260px; overflow: auto; }
+
+  /* python view */
+  #python-panel { display: none; margin-top: 16px; }
+  #python-code { margin: 0; padding: 16px; font-size: 13px; line-height: 1.6; overflow: auto; max-height: 420px; color: var(--ink); white-space: pre; }
+
+  /* lessons */
+  .lessons { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; }
+  .lesson-list { list-style: none; margin: 0; padding: 0; }
+  .lesson-list li { border-top: 1px solid var(--rule); }
+  .lesson-list button { width: 100%; text-align: left; background: none; border: 0; padding: 10px 0; cursor: pointer; font: inherit;
+    font-size: var(--fs-small); color: var(--ink-2); display: flex; gap: 8px; align-items: baseline; }
+  .lesson-list button[aria-current="true"] { color: var(--accent); }
+  .lesson-list .done { color: var(--accent); margin-left: auto; font-family: var(--font-mono); font-size: .75rem; }
+  .lesson-body h3 { font-family: var(--font-display); font-weight: 400; font-size: 2rem; color: var(--ink); margin: 0 0 8px; }
+  .lesson-body p { margin: 0 0 12px; max-width: 70ch; }
+  .lesson-body code { font-size: .85rem; color: var(--ink); background: var(--surface-2); padding: 1px 5px; border-radius: var(--radius); }
+  #lesson-editor { width: 100%; min-height: 200px; padding: 14px; font-family: var(--font-mono); font-size: 14px; line-height: 1.6;
+    border: 0; resize: vertical; background: transparent; color: var(--ink); outline: none; tab-size: 4; white-space: pre; box-sizing: border-box; }
+  #lesson-result { margin: 0; padding: 14px; font-size: 13px; white-space: pre-wrap; border-top: 1px solid var(--rule); display: none; }
+  .verdict { font-family: var(--font-mono); font-size: .8rem; }
+  .verdict.ok { color: var(--accent); }
+  .verdict.no { color: var(--err); }
+
+  /* gallery */
+  .gallery-cat { margin: 26px 0 8px; }
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .card { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .card h4 { font-family: var(--font-display); font-weight: 400; font-size: 1.35rem; color: var(--ink); margin: 0; }
+  .card p { margin: 0; font-size: var(--fs-small); flex: 1; }
+  .card button { align-self: flex-start; }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--bg);
+    padding: 10px 16px; border-radius: var(--radius); font-size: .9rem; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; }
+  .toast.show { opacity: 1; }
+
+  @media (max-width: 860px) {
+    .lessons { grid-template-columns: minmax(0, 1fr); }
+    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 560px) {
+    .cards, .step-grid { grid-template-columns: minmax(0, 1fr); }
+    .step-grid > div + div { border-left: 0; border-top: 1px solid var(--rule); }
+    .code-area pre.hl, .code-area textarea { font-size: 13px; }
+    .hl-line { height: 20.8px; }
+  }
 </style>
 </head>
 <body>
@@ -198,9 +310,10 @@
     <a class="brand" href="#top">AdarshLang</a>
     <nav class="links" aria-label="Sections">
       <a href="#playground"><span class="num">01</span>Playground</a>
-      <a href="#examples"><span class="num">02</span>Examples</a>
-      <a href="#docs"><span class="num">03</span>Docs</a>
-      <a href="https://github.com/anonymousAAK/adarshLang"><span class="num">04</span>GitHub</a>
+      <a href="#seekho"><span class="num">02</span>Seekho</a>
+      <a href="#gallery"><span class="num">03</span>Gallery</a>
+      <a href="#docs"><span class="num">04</span>Docs</a>
+      <a href="https://github.com/anonymousAAK/adarshLang"><span class="num">05</span>GitHub</a>
     </nav>
     <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
@@ -212,18 +325,18 @@
   <section class="hero">
     <div class="wrap">
       <div>
-      <div class="label">AdarshLang · Hinglish programming language · v0.2.0</div>
+      <div class="label">AdarshLang · Hinglish programming language · v0.3.0</div>
       <h1>Code in your own <em>language</em>.</h1>
       <p class="lede">Write <code>badlo</code>, <code>dikhao</code> and <code>agar</code>, and run it instantly. The interpreter is Rust compiled to WebAssembly, running right in your browser.</p>
       <div class="stats">
         <div><b>0</b><span>servers needed</span></div>
-        <div><b>35</b><span>builtin functions</span></div>
-        <div><b>Hinglish</b><span>errors with line + column</span></div>
+        <div><b>107</b><span>builtin functions</span></div>
+        <div><b>14</b><span>lessons to start with</span></div>
       </div>
       <div class="cta">
         <a class="btn btn-primary" href="#playground">Open the playground <span aria-hidden="true">→</span></a>
-        <a class="link-arrow" href="#examples">Browse examples →</a>
-        <a class="link-arrow" href="#docs">Read the docs →</a>
+        <a class="link-arrow" href="#seekho">Start learning →</a>
+        <a class="link-arrow" href="#gallery">Browse the gallery →</a>
       </div>
       </div>
       <figure class="sample-wrap" style="margin:0">
@@ -251,32 +364,74 @@
     <div class="wrap">
       <div class="section-head">
         <span class="num">01</span><h2>Playground</h2>
-        <p>Edit the code and press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> (or <kbd>⌘</kbd> + <kbd>Enter</kbd>) to run it.</p>
+        <p>Edit and press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to run. Your code is saved in this browser.</p>
       </div>
       <form id="codeForm" class="panel" onsubmit="runCode(event)">
-        <div class="panel-head"><span class="label">main.aak</span><span class="label" id="ready-label">Loading…</span></div>
+        <div class="tabs" role="tablist" id="tabs"></div>
+        <div class="panel-head">
+          <span class="label" id="ready-label">Loading…</span>
+          <span class="tab-actions">
+            <button type="button" class="icon-text" onclick="shareLink()" title="Copy a link to this code">Share</button>
+            <button type="button" class="icon-text" onclick="embedCode()" title="Copy an iframe for blogs">Embed</button>
+            <button type="button" class="icon-text" onclick="downloadFile()" title="Download this file">Download</button>
+            <button type="button" class="icon-text" onclick="document.getElementById('upload').click()" title="Open .aak files">Upload</button>
+            <input type="file" id="upload" accept=".aak,.txt" multiple hidden onchange="uploadFiles(this.files)">
+          </span>
+        </div>
         <div class="editor">
           <div class="gutter" id="gutter" aria-hidden="true">1</div>
-          <textarea id="source_code" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="AdarshLang code"
-            placeholder="badlo naam = &quot;Adarsh&quot;;&#10;dikhao(&quot;Namaste, {naam}!&quot;);"></textarea>
+          <div class="code-area" id="code-area">
+            <div class="hl-line" id="hl-line"></div>
+            <pre class="hl" id="hl" aria-hidden="true"></pre>
+            <textarea id="source_code" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="AdarshLang code"></textarea>
+            <div class="ac" id="ac" role="listbox"></div>
+          </div>
         </div>
         <details class="stdin">
-          <summary>Input for <code>padho()</code>, one value per line</summary>
+          <summary>Input for <code>padho()</code>, one value per line <span id="live-note"></span></summary>
           <textarea id="stdin" spellcheck="false" placeholder="Adarsh&#10;24"></textarea>
         </details>
         <div class="toolbar">
           <button type="submit" id="run-btn" class="btn btn-primary">Run code <span aria-hidden="true">→</span></button>
-          <button type="button" class="btn btn-ghost" onclick="copyCode(this)">Copy</button>
+          <button type="button" class="btn btn-ghost" onclick="stepThrough()">Step through</button>
+          <button type="button" class="btn btn-ghost" onclick="showPython()">Python mein dekho</button>
           <button type="button" class="btn btn-ghost" onclick="resetEditor()">Reset</button>
-          <span class="hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> to run · <kbd>Tab</kbd> indents</span>
+          <span class="hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> run · <kbd>Tab</kbd> indent / complete</span>
         </div>
       </form>
+
       <div id="output-card" class="panel" aria-live="polite">
         <div class="panel-head">
           <span class="status"><span class="dot" id="status-dot"></span><span class="label" id="output-label">Output</span></span>
           <button class="btn btn-ghost" onclick="clearOutput()">Clear</button>
         </div>
         <pre id="output-pre"></pre>
+        <div class="live-input" id="live-input">
+          <input id="live-text" placeholder="Jawab likho aur Enter dabao" autocomplete="off">
+          <button class="btn btn-ghost" type="button" onclick="sendLive(null)">Input khatam</button>
+        </div>
+        <div id="turtle-wrap"><div class="label" style="margin-bottom:8px">Kachhua ki drawing</div><canvas id="turtle-canvas"></canvas></div>
+        <details id="warnings"><summary id="warn-summary">Dhyan do</summary><pre id="warn-pre"></pre></details>
+      </div>
+
+      <div id="step-panel" class="panel">
+        <div class="panel-head"><span class="label">Step through · har line ke baad variables</span><button class="btn btn-ghost" onclick="closeSteps()">Close</button></div>
+        <div class="step-controls">
+          <button class="btn btn-ghost" onclick="moveStep(-1)">← Pichhla</button>
+          <input type="range" id="step-range" min="0" value="0" oninput="showStep(+this.value)" aria-label="Step">
+          <button class="btn btn-ghost" onclick="moveStep(1)">Agla →</button>
+          <span class="label" id="step-label"></span>
+        </div>
+        <div class="step-grid">
+          <div><div class="label" style="margin-bottom:6px">Variables</div><table class="vars" id="step-vars"></table></div>
+          <div><div class="label" style="margin-bottom:6px">Output ab tak</div><pre id="step-output"></pre></div>
+        </div>
+      </div>
+
+      <div id="python-panel" class="panel">
+        <div class="panel-head"><span class="label">Python mein · seekhne ke liye (bilkul same nahi chalta)</span>
+          <span><button class="btn btn-ghost" onclick="copyPython()">Copy</button> <button class="btn btn-ghost" onclick="document.getElementById('python-panel').style.display='none'">Close</button></span></div>
+        <pre id="python-code"></pre>
       </div>
     </div>
   </section>
@@ -284,71 +439,101 @@
   <section class="block" id="examples">
     <div class="wrap">
       <div class="section-head">
-        <span class="num">02</span><h2>Examples</h2>
-        <p>Pick one to load it into the playground, then run it.</p>
+        <span class="num">··</span><h2>Chhote examples</h2>
+        <p>One click loads it into the playground.</p>
       </div>
       <ul class="examples" id="example-list"></ul>
+    </div>
+  </section>
+
+  <section class="block" id="seekho">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="num">02</span><h2>Seekho</h2>
+        <p>Short lessons: read, change the code, press Check. Progress is saved in this browser.</p>
+      </div>
+      <div class="lessons">
+        <ul class="lesson-list" id="lesson-list"></ul>
+        <div class="lesson-body">
+          <h3 id="lesson-title"></h3>
+          <div id="lesson-text"></div>
+          <div class="panel" style="margin-top:14px">
+            <div class="panel-head"><span class="label" id="lesson-file">lesson.aak</span><span class="verdict" id="lesson-verdict"></span></div>
+            <textarea id="lesson-editor" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Lesson code"></textarea>
+            <div class="toolbar">
+              <button class="btn btn-primary" type="button" onclick="checkLesson()">Check <span aria-hidden="true">→</span></button>
+              <button class="btn btn-ghost" type="button" onclick="lessonHint()">Hint</button>
+              <button class="btn btn-ghost" type="button" onclick="lessonSolution()">Solution</button>
+              <button class="btn btn-ghost" type="button" onclick="nextLesson()">Agla lesson</button>
+            </div>
+            <pre id="lesson-result"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="gallery">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="num">03</span><h2>Gallery</h2>
+        <p>Bigger programs: games, maths, data and drawings.</p>
+      </div>
+      <div id="gallery-list"></div>
     </div>
   </section>
 
   <section class="block" id="docs">
     <div class="wrap">
       <div class="section-head">
-        <span class="num">03</span><h2>Docs</h2>
-        <p>The whole language on one page.</p>
+        <span class="num">04</span><h2>Docs</h2>
+        <p>The essentials. Everything else: <a href="https://github.com/anonymousAAK/adarshLang/blob/master/docs/REFERENCE.md">full reference</a>.</p>
       </div>
       <div class="docs">
         <div class="doc"><h3>Basics</h3><ul>
-          <li>Variable: <code>badlo x = 10;</code></li>
-          <li>Print: <code>dikhao(x);</code></li>
-          <li>Booleans: <code>sahi_hai_be</code> / <code>jhuth</code></li>
-          <li>Null: <code>khali</code></li>
-          <li>Comment: <code># yeh comment hai</code></li>
-          <li>Interpolation: <code>"Hi {naam}!"</code></li>
+          <li>Variable: <code>badlo x = 10;</code> · constant: <code>pakka PI2 = 6.28;</code></li>
+          <li>Print: <code>dikhao("Hi {naam}!");</code> · format: <code>"{x:.2}"</code></li>
+          <li><code>sahi_hai_be</code> / <code>jhuth</code> / <code>khali</code></li>
+          <li>Strings: <code>"""multi-line"""</code>, raw <code>r"C:\path"</code></li>
           <li>Input: <code>padho("Naam? ")</code></li>
         </ul></div>
         <div class="doc"><h3>Operators</h3><ul>
-          <li>Math: <code>+ - * / % **</code></li>
-          <li>Compare: <code>== != &lt; &gt; &lt;= &gt;=</code></li>
-          <li>Logic: <code>aur</code> <code>ya</code> <code>nahin</code> (or <code>&amp;&amp; || !</code>)</li>
-          <li>Compound: <code>+= -= *= /= %=</code></li>
-          <li>Numbers: <code>42</code> <code>3.14</code> <code>.5</code> <code>1e6</code> <code>1_000</code></li>
+          <li><code>+ - * / // % **</code> · <code>== != &lt; &gt; &lt;= &gt;=</code></li>
+          <li><code>aur ya nahin</code> · <code>0 &lt; x &lt; 10</code> · <code>x in xs</code></li>
+          <li><code>x hai number</code> · <code>user?.naam ?? "anjaan"</code></li>
+          <li><code>agar (c) a warna b</code> · ranges <code>1..10</code></li>
         </ul></div>
         <div class="doc"><h3>Control flow</h3><ul>
-          <li>If: <code>agar (c) { } warna { }</code></li>
-          <li>While: <code>jabtak (c) { }</code></li>
-          <li>For: <code>ginnati (badlo i = 0; i &lt; 5; i += 1) { }</code></li>
-          <li>For-each: <code>ke_liye (badlo x in list) { }</code></li>
-          <li>Switch: <code>chuno (x) { case 1, 2: … warna_case: … }</code></li>
-          <li>Break / continue: <code>bas;</code> <code>aage_badho;</code></li>
+          <li><code>agar / warna</code>, <code>jabtak</code>, <code>karo { } jabtak (c);</code></li>
+          <li><code>ginnati (badlo i = 0; i &lt; 5; i += 1)</code></li>
+          <li><code>ke_liye (badlo i, x in xs)</code></li>
+          <li><code>chuno</code> with <code>case 1..5:</code>, <code>case [a, ...rest]:</code>, <code>agar</code> guards</li>
         </ul></div>
         <div class="doc"><h3>Functions</h3><ul>
-          <li>Define: <code>kaam add(a, b) { wapas a + b; }</code></li>
-          <li>Defaults: <code>kaam f(n, m = 2) { }</code></li>
-          <li>Varargs: <code>kaam total(baaki nums) { }</code></li>
-          <li>Anonymous: <code>kaam (x) { wapas x * 2; }</code></li>
-          <li>Use before defining. Functions can be nested.</li>
+          <li><code>kaam add(a, b = 0) { wapas a + b; }</code></li>
+          <li>Lambdas <code>x =&gt; x * 2</code>, spread <code>f(...xs)</code>, named <code>f(b: 1)</code></li>
+          <li>Dot-calls: <code>xs.sort(by: f)</code>, <code>naam.upper()</code></li>
+          <li>Generators with <code>dete_raho</code></li>
         </ul></div>
         <div class="doc"><h3>Data</h3><ul>
-          <li>List: <code>[1, 2, 3]</code> with <code>push pop sort slice</code></li>
-          <li>Dict: <code>{"key": "value"}</code> with <code>keys values hatao</code></li>
-          <li>Record: <code>dhacha Vyakti { naam, umar };</code></li>
-          <li>Create: <code>Vyakti { naam: "A", umar: 9 }</code></li>
-          <li>Method: <code>kaam Vyakti.hi() { wapas yeh.naam; }</code></li>
+          <li>Lists, dicts, tuples <code>(1, 2)</code>, sets <code>set([1, 2])</code></li>
+          <li>Slices <code>xs[1:3]</code>, destructuring <code>badlo [a, b] = xs;</code></li>
+          <li><code>dhacha Student : Vyakti { roll };</code> with methods</li>
+          <li>Enums: <code>vikalp Rang { Laal, Hara };</code></li>
         </ul></div>
-        <div class="doc"><h3>Errors &amp; modules</h3><ul>
-          <li>Catch: <code>pakdo { } chhoddo (err) { }</code></li>
-          <li>Catches runtime errors too, e.g. <code>1 / 0</code></li>
-          <li>Throw: <code>chhoddo("message");</code></li>
-          <li>Import: <code>lao "utils.aak";</code> (CLI)</li>
-          <li>Builtins: <code>length push pop rakho nikalo hatao map filter reduce random_number current_time abs floor ceil upper lower join split prakar shabdme sankhya range keys values contains sort reverse slice replace trim find min_val max_val round_val padho</code></li>
+        <div class="doc"><h3>Errors &amp; more</h3><ul>
+          <li><code>pakdo { } chhoddo (e: Type) { } aakhir { }</code></li>
+          <li>Tests: <code>jaancho(x == 4, "msg");</code></li>
+          <li>Drawing: <code>kachhua.aage(100); kachhua.daayen(90);</code></li>
+          <li>Builtins: <code>map filter reduce sort sum json_padho tareekh rupaye … (107)</code></li>
         </ul></div>
       </div>
       <div class="install">
         <div class="label">Run it on your computer</div>
         <pre>cargo install --git https://github.com/anonymousAAK/adarshLang adarshlang
 adarsh hello.aak          # run a program
-adarsh                    # REPL
+adarsh test               # run *_test.aak tests
+adarsh python hello.aak   # see it in Python
 adarsh build hello.aak    # make a standalone executable</pre>
       </div>
     </div>
@@ -363,7 +548,12 @@ adarsh build hello.aak    # make a standalone executable</pre>
     </div>
   </div>
 </footer>
+<div class="toast" id="toast"></div>
 
+<script src="builtins.js"></script>
+<script src="lessons.js"></script>
+<script src="gallery.js"></script>
+<script src="app-core.js"></script>
 <script>
 var snippets = {
 
@@ -1139,37 +1329,376 @@ dikhao("\n=== Sab features kaam kar rahe hain! ===");`
 
 
 var EXAMPLES = [
-  ['hello', 'Hello World'], ['variables', 'Variables & types'], ['interpolation', 'String interpolation', 1],
-  ['ifelse', 'If / else'], ['logic', 'aur / ya / nahin', 1], ['loops', 'Loops'],
+  ['hello', 'Hello World'], ['variables', 'Variables & types'], ['interpolation', 'String interpolation'],
+  ['ifelse', 'If / else'], ['logic', 'aur / ya / nahin'], ['loops', 'Loops'],
   ['functions', 'Functions'], ['lists', 'Lists'], ['dicts', 'Dictionaries'],
-  ['structs', 'Records (dhacha)'], ['methods', 'Record methods', 1], ['switch', 'Switch (chuno)'],
-  ['trycatch', 'Try / catch'], ['errors', 'Catching errors', 1], ['input', 'Input (padho)', 1],
+  ['structs', 'Records (dhacha)'], ['methods', 'Record methods'], ['switch', 'Switch (chuno)'],
+  ['trycatch', 'Try / catch'], ['errors', 'Catching errors'], ['input', 'Input (padho)'],
   ['math', 'Math builtins'], ['strings', 'String builtins'], ['functional', 'Map / filter / reduce'],
   ['compound', 'Compound assignment'], ['power_mod', 'Power & modulo'], ['null', 'Null (khali)'],
   ['typecheck', 'Type checking'], ['range', 'Range & iteration'], ['collections', 'Collection helpers'],
   ['fizzbuzz', 'FizzBuzz'], ['all_features', 'All features demo']
 ];
-var DEFAULT_CODE = snippets.hello;
+
+Adarsh.setBuiltins(ADARSH_BUILTINS.map(function (b) { return b[0]; }));
+var runner = new Adarsh.Runner();
 var editor = document.getElementById('source_code');
 var gutter = document.getElementById('gutter');
+var hl = document.getElementById('hl');
+var files = [{ name: 'main.aak', code: snippets.hello }];
+var current = 0;
+var lastSteps = null;
 
-function updateGutter() {
-  var n = editor.value.split('\n').length, s = '';
+function store(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
+function load(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+function toast(text) {
+  var t = document.getElementById('toast');
+  t.textContent = text; t.classList.add('show');
+  clearTimeout(toast.timer); toast.timer = setTimeout(function () { t.classList.remove('show'); }, 1800);
+}
+
+// ------------------------------------------------------------ editor
+
+function refresh() {
+  var code = editor.value;
+  hl.innerHTML = Adarsh.highlight(code) + '\n';
+  var n = code.split('\n').length, s = '';
   for (var i = 1; i <= n; i++) s += i + '\n';
   gutter.textContent = s;
-  gutter.scrollTop = editor.scrollTop;
+  syncScroll();
 }
-editor.addEventListener('input', updateGutter);
-editor.addEventListener('scroll', function () { gutter.scrollTop = editor.scrollTop; });
+function syncScroll() {
+  hl.scrollTop = editor.scrollTop; hl.scrollLeft = editor.scrollLeft;
+  gutter.scrollTop = editor.scrollTop;
+  positionLine();
+}
+var saveTimer = null;
+function changed() {
+  files[current].code = editor.value;
+  refresh();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(function () { store('aak-files', JSON.stringify(files)); }, 400);
+}
+editor.addEventListener('input', function () { changed(); autocomplete(); });
+editor.addEventListener('scroll', syncScroll);
+editor.addEventListener('click', hideAc);
+editor.addEventListener('blur', function () { setTimeout(hideAc, 150); });
+
+function insertText(text) {
+  var s = editor.selectionStart, t = editor.selectionEnd;
+  editor.value = editor.value.slice(0, s) + text + editor.value.slice(t);
+  editor.selectionStart = editor.selectionEnd = s + text.length;
+  changed();
+}
+
 editor.addEventListener('keydown', function (e) {
-  if (e.key === 'Tab' && !e.shiftKey) {
+  var ac = document.getElementById('ac');
+  var open = ac.style.display === 'block';
+  if (open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    e.preventDefault(); moveAc(e.key === 'ArrowDown' ? 1 : -1); return;
+  }
+  if (open && (e.key === 'Tab' || e.key === 'Enter')) { e.preventDefault(); acceptAc(); return; }
+  if (open && e.key === 'Escape') { hideAc(); return; }
+  if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); insertText('    '); return; }
+  if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+    // keep the indentation of the current line, one more level after '{'
     e.preventDefault();
-    var s = editor.selectionStart, t = editor.selectionEnd;
-    editor.value = editor.value.slice(0, s) + '    ' + editor.value.slice(t);
-    editor.selectionStart = editor.selectionEnd = s + 4;
-    updateGutter();
+    var before = editor.value.slice(0, editor.selectionStart);
+    var line = before.slice(before.lastIndexOf('\n') + 1);
+    var indent = /^\s*/.exec(line)[0];
+    if (/\{\s*$/.test(line)) indent += '    ';
+    insertText('\n' + indent);
+    return;
+  }
+  if (e.key === '}') {
+    var b2 = editor.value.slice(0, editor.selectionStart);
+    var ln = b2.slice(b2.lastIndexOf('\n') + 1);
+    if (/^\s+$/.test(ln) && ln.length >= 4) {
+      e.preventDefault();
+      var s = editor.selectionStart;
+      editor.value = editor.value.slice(0, s - 4) + '}' + editor.value.slice(s);
+      editor.selectionStart = editor.selectionEnd = s - 3;
+      changed();
+    }
   }
 });
+
+// ------------------------------------------------------------ autocomplete
+
+var acItems = [], acIndex = 0, acPrefix = '';
+var charWidth = 0;
+function measure() {
+  var c = document.createElement('canvas').getContext('2d');
+  var st = getComputedStyle(editor);
+  c.font = st.fontSize + ' ' + st.fontFamily;
+  charWidth = c.measureText('MMMMMMMMMM').width / 10;
+}
+function autocomplete() {
+  var pos = editor.selectionStart;
+  var before = editor.value.slice(0, pos);
+  var m = /[A-Za-z_][\w]*$/.exec(before);
+  if (!m || m[0].length < 2 || /\.$/.test(before.slice(0, -m[0].length)) && false) { hideAc(); return; }
+  acPrefix = m[0];
+  var words = {};
+  Adarsh.keywords.forEach(function (k) { words[k] = 'keyword'; });
+  ADARSH_BUILTINS.forEach(function (b) { words[b[0]] = b[0] + '(' + b[1].join(', ') + ') · ' + b[2]; });
+  files.forEach(function (f) { (f.code.match(/[A-Za-z_]\w{2,}/g) || []).forEach(function (w) { if (!words[w]) words[w] = ''; }); });
+  acItems = Object.keys(words).filter(function (w) { return w.indexOf(acPrefix) === 0 && w !== acPrefix; })
+    .sort(function (a, b) { return a.length - b.length || a.localeCompare(b); }).slice(0, 8)
+    .map(function (w) { return [w, words[w]]; });
+  if (!acItems.length) { hideAc(); return; }
+  acIndex = 0;
+  if (!charWidth) measure();
+  var lines = before.split('\n');
+  var row = lines.length, col = lines[lines.length - 1].length - acPrefix.length;
+  var lh = parseFloat(getComputedStyle(editor).lineHeight) || 22.4;
+  var ac = document.getElementById('ac');
+  ac.style.left = Math.max(0, Math.min(16 + col * charWidth - editor.scrollLeft, editor.clientWidth - 230)) + 'px';
+  ac.style.top = (16 + row * lh - editor.scrollTop + 2) + 'px';
+  renderAc();
+  ac.style.display = 'block';
+}
+function renderAc() {
+  var ac = document.getElementById('ac');
+  ac.innerHTML = acItems.map(function (it, i) {
+    return '<div role="option" aria-selected="' + (i === acIndex) + '" onmousedown="event.preventDefault();acIndex=' + i + ';acceptAc()">' +
+      '<span>' + Adarsh.esc(it[0]) + '</span><small>' + Adarsh.esc(it[1]) + '</small></div>';
+  }).join('');
+}
+function moveAc(d) { acIndex = (acIndex + d + acItems.length) % acItems.length; renderAc(); }
+function acceptAc() {
+  var w = acItems[acIndex][0];
+  insertText(w.slice(acPrefix.length));
+  hideAc();
+}
+function hideAc() { document.getElementById('ac').style.display = 'none'; }
+
+// ------------------------------------------------------------ files / tabs
+
+function renderTabs() {
+  var tabs = document.getElementById('tabs');
+  tabs.innerHTML = '';
+  files.forEach(function (f, i) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'tab'; b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', i === current ? 'true' : 'false');
+    b.title = i === 0 ? 'Main file (yahi chalti hai). Double-click: naam badlo' : 'lao "' + f.name.replace(/\.aak$/, '') + '"; se use karo. Double-click: naam badlo';
+    b.innerHTML = Adarsh.esc(f.name) + (i > 0 ? ' <span class="x" title="Hatao">×</span>' : '');
+    b.onclick = function (e) {
+      if (e.target.classList.contains('x')) { removeFile(i); return; }
+      switchFile(i);
+    };
+    b.ondblclick = function () { renameFile(i); };
+    tabs.appendChild(b);
+  });
+  var add = document.createElement('button');
+  add.type = 'button'; add.className = 'tab tab-add'; add.textContent = '+ file'; add.title = 'Nayi file (lao se use karo)';
+  add.onclick = function () { addFile(); };
+  tabs.appendChild(add);
+}
+function switchFile(i) {
+  files[current].code = editor.value;
+  current = i; editor.value = files[i].code;
+  renderTabs(); refresh(); closeSteps();
+}
+function addFile(name, code) {
+  var n = name || ('utils' + (files.length > 1 ? files.length : '') + '.aak');
+  files.push({ name: n, code: code || '## Is file ko main.aak mein lao "' + n.replace(/\.aak$/, '') + '"; se use karo\nkaam namaste(naam) {\n    wapas "Namaste, {naam}!";\n}\n' });
+  switchFile(files.length - 1); changed();
+}
+function removeFile(i) {
+  if (!confirm('"' + files[i].name + '" hatayein?')) return;
+  files.splice(i, 1);
+  current = Math.min(current, files.length - 1);
+  editor.value = files[current].code; renderTabs(); changed();
+}
+function renameFile(i) {
+  var n = prompt('Naya naam (.aak)', files[i].name);
+  if (!n) return;
+  if (!/\.aak$/.test(n)) n += '.aak';
+  files[i].name = n; renderTabs(); changed();
+}
+function downloadFile() {
+  var f = files[current];
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([editor.value], { type: 'text/plain' }));
+  a.download = f.name; a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+}
+function uploadFiles(list) {
+  Array.prototype.forEach.call(list, function (file, k) {
+    file.text().then(function (text) {
+      if (k === 0 && files.length === 1 && files[0].code === snippets.hello) { files[0] = { name: 'main.aak', code: text }; switchFile(0); changed(); }
+      else addFile(file.name, text);
+    });
+  });
+  document.getElementById('upload').value = '';
+}
+
+// ------------------------------------------------------------ share / embed
+
+async function shareLink() {
+  files[current].code = editor.value;
+  var url = location.origin + location.pathname + '#code=' + await Adarsh.encodeFiles(files);
+  history.replaceState(null, '', url);
+  try { await navigator.clipboard.writeText(url); toast('Link copy ho gaya'); } catch (e) { prompt('Yeh link copy karo:', url); }
+}
+async function embedCode() {
+  files[current].code = editor.value;
+  var base = location.origin + location.pathname.replace(/index\.html$/, '').replace(/\/?$/, '/');
+  var html = '<iframe src="' + base + 'embed.html#code=' + await Adarsh.encodeFiles(files) +
+    '" width="100%" height="420" style="border:1px solid #dcd8cf;border-radius:2px" loading="lazy" title="AdarshLang"></iframe>';
+  try { await navigator.clipboard.writeText(html); toast('Embed code copy ho gaya'); } catch (e) { prompt('Yeh code copy karo:', html); }
+}
+
+// ------------------------------------------------------------ running
+
+function otherFiles() {
+  return files.filter(function (_, i) { return i !== 0; });
+}
+function setStatus(label, isError) {
+  document.getElementById('output-label').textContent = label;
+  document.getElementById('status-dot').className = isError ? 'dot err' : 'dot';
+}
+function sendLive(text) {
+  var box = document.getElementById('live-input');
+  box.style.display = 'none';
+  if (text !== null) document.getElementById('output-pre').textContent += text + '\n';
+  if (sendLive.answer) { var a = sendLive.answer; sendLive.answer = null; a(text); }
+}
+document.getElementById('live-text').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); var v = this.value; this.value = ''; sendLive(v); }
+});
+
+async function runCode(event, steps) {
+  if (event) event.preventDefault();
+  files[current].code = editor.value;
+  var btn = document.getElementById('run-btn'), card = document.getElementById('output-card');
+  var pre = document.getElementById('output-pre');
+  btn.innerHTML = '<span class="spin">◌</span> Running…'; btn.disabled = true;
+  pre.className = ''; pre.textContent = '';
+  card.style.display = 'block';
+  document.getElementById('turtle-wrap').style.display = 'none';
+  document.getElementById('warnings').style.display = 'none';
+  setStatus('Output', false);
+  var data, usedLive = false;
+  try {
+    data = await runner.run({
+      code: files[0].code, files: otherFiles(), input: document.getElementById('stdin').value, steps: !!steps,
+      onChunk: function (t) { pre.textContent += t; },
+      onNeedInput: runner.live ? function (answer) {
+        usedLive = true;
+        sendLive.answer = answer;
+        var box = document.getElementById('live-input');
+        box.style.display = 'flex';
+        var inp = document.getElementById('live-text'); inp.focus();
+      } : null,
+    });
+    var out = data.output;
+    // after live input, keep the transcript (it shows what the user typed)
+    var transcript = usedLive ? pre.textContent : null;
+    if (transcript !== null) {
+      pre.textContent = transcript;
+      if (data.error) { pre.className = 'error-output'; setStatus('Error', true); pre.textContent += '\n' + data.error; }
+      else setStatus('Output · live', false);
+    } else if (data.error) {
+      pre.className = 'error-output'; setStatus('Error', true);
+      pre.innerHTML = Adarsh.ansiToHtml(out ? out + '\n' : '') + Adarsh.esc(data.error);
+    } else {
+      setStatus('Output · ' + (data.ms < 1 ? '<1' : Math.round(data.ms)) + ' ms', false);
+      pre.innerHTML = out ? Adarsh.ansiToHtml(out) : '(no output)';
+    }
+    if (data.turtle && data.turtle.length) {
+      document.getElementById('turtle-wrap').style.display = 'block';
+      Adarsh.drawTurtle(document.getElementById('turtle-canvas'), data.turtle);
+    }
+    if (data.warnings && data.warnings.length) {
+      var w = document.getElementById('warnings');
+      w.style.display = 'block';
+      document.getElementById('warn-summary').textContent = 'Dhyan do · ' + data.warnings.length + ' warning' + (data.warnings.length > 1 ? 's' : '');
+      document.getElementById('warn-pre').textContent = data.warnings.join('\n\n');
+    }
+  } catch (err) {
+    pre.className = 'error-output'; setStatus('Error', true); pre.textContent = err.message;
+  } finally {
+    document.getElementById('live-input').style.display = 'none';
+    btn.innerHTML = 'Run code <span aria-hidden="true">→</span>'; btn.disabled = false;
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  return data;
+}
+
+// ------------------------------------------------------------ step through
+
+async function stepThrough() {
+  if (current !== 0) switchFile(0);
+  var data = await runCode(null, true);
+  if (!data || !data.steps || !data.steps.length) { toast('Koi step record nahi hua'); return; }
+  lastSteps = data;
+  var r = document.getElementById('step-range');
+  r.max = data.steps.length - 1; r.value = 0;
+  document.getElementById('step-panel').style.display = 'block';
+  showStep(0);
+  document.getElementById('step-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function showStep(i) {
+  if (!lastSteps) return;
+  var steps = lastSteps.steps, st = steps[i];
+  document.getElementById('step-range').value = i;
+  document.getElementById('step-label').textContent = 'Step ' + (i + 1) + ' / ' + steps.length + ' · line ' + st.l + (steps.length >= 5000 ? ' (pehle 5000 steps)' : '');
+  document.getElementById('step-vars').innerHTML = st.v.length
+    ? st.v.map(function (p) { return '<tr><td>' + Adarsh.esc(p[0]) + '</td><td>' + Adarsh.esc(p[1]) + '</td></tr>'; }).join('')
+    : '<tr><td colspan="2" style="color:var(--ink-3)">abhi koi variable nahi</td></tr>';
+  var bytes = new TextEncoder().encode(lastSteps.output).slice(0, st.o);
+  document.getElementById('step-output').textContent = new TextDecoder().decode(bytes);
+  showLine(st.l);
+}
+function moveStep(d) {
+  if (!lastSteps) return;
+  var i = Math.max(0, Math.min(lastSteps.steps.length - 1, +document.getElementById('step-range').value + d));
+  showStep(i);
+}
+var markedLine = 0;
+function showLine(line) { markedLine = line; positionLine(); }
+function positionLine() {
+  var el = document.getElementById('hl-line');
+  if (!markedLine || !lastSteps || document.getElementById('step-panel').style.display !== 'block') { el.style.display = 'none'; return; }
+  var lh = parseFloat(getComputedStyle(editor).lineHeight) || 22.4;
+  el.style.height = lh + 'px';
+  el.style.top = (16 + (markedLine - 1) * lh - editor.scrollTop) + 'px';
+  el.style.display = 'block';
+  var top = 16 + (markedLine - 1) * lh;
+  if (top < editor.scrollTop || top > editor.scrollTop + editor.clientHeight - lh) editor.scrollTop = top - editor.clientHeight / 3;
+}
+function closeSteps() {
+  document.getElementById('step-panel').style.display = 'none';
+  markedLine = 0; positionLine();
+}
+
+// ------------------------------------------------------------ python view
+
+async function showPython() {
+  files[current].code = editor.value;
+  var r = await runner.python(files[0].code, otherFiles());
+  var panel = document.getElementById('python-panel');
+  panel.style.display = 'block';
+  document.getElementById('python-code').textContent = r.error ? r.error : r.code;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function copyPython() {
+  navigator.clipboard.writeText(document.getElementById('python-code').textContent).then(function () { toast('Python copy ho gaya'); });
+}
+
+// ------------------------------------------------------------ examples, lessons, gallery
+
+function loadIntoEditor(code) {
+  files = [{ name: 'main.aak', code: code }];
+  current = 0; editor.value = code;
+  renderTabs(); changed(); clearOutput(); closeSteps();
+  document.getElementById('playground').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  editor.focus({ preventScroll: true });
+}
+function loadSnippet(name) { loadIntoEditor(snippets[name]); }
 
 (function buildExamples() {
   var list = document.getElementById('example-list');
@@ -1177,106 +1706,121 @@ editor.addEventListener('keydown', function (e) {
     if (!snippets[ex[0]]) return;
     var li = document.createElement('li'), b = document.createElement('button');
     b.type = 'button';
-    b.innerHTML = '<span class="num">' + String(i + 1).padStart(2, '0') + '</span>' + ex[1].replace(/&/g, '&amp;') + (ex[2] ? '<span class="new">new</span>' : '');
-    b.onclick = function () { loadSnippet(ex[0], b); };
+    b.innerHTML = '<span class="num">' + String(i + 1).padStart(2, '0') + '</span>' + Adarsh.esc(ex[1]);
+    b.onclick = function () { loadSnippet(ex[0]); };
     li.appendChild(b); list.appendChild(li);
   });
 })();
 
-function loadSnippet(name, btn) {
-  editor.value = snippets[name];
-  updateGutter();
-  clearOutput();
-  document.querySelectorAll('.examples button').forEach(function (x) { x.setAttribute('aria-pressed', x === btn ? 'true' : 'false'); });
-  document.getElementById('playground').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  editor.focus({ preventScroll: true });
-}
-
-var worker = null;
-var TIME_LIMIT_MS = 5000;
-
-function getWorker() {
-  if (!worker) {
-    worker = new Worker('worker.js');
-    worker.postMessage({ warmup: true });
-  }
-  return worker;
-}
-
-// Runs code in a Web Worker (the Rust interpreter compiled to WebAssembly).
-// A program that runs too long is stopped by terminating the worker.
-var onChunk = null;
-function runInWorker(code, input) {
-  return new Promise(function (resolve, reject) {
-    var w = getWorker();
-    var timer = setTimeout(function () {
-      w.terminate(); worker = null;
-      reject(new Error('Galti: Program ' + (TIME_LIMIT_MS / 1000) + ' second se zyada chala, isliye roka gaya. Shayad koi infinite loop hai?'));
-    }, TIME_LIMIT_MS);
-    w.onmessage = function (e) {
-      if (e.data.ready) return;
-      if (e.data.chunk !== undefined) { if (onChunk) onChunk(e.data.chunk); return; }
-      clearTimeout(timer); resolve(e.data);
-    };
-    w.onerror = function (e) { clearTimeout(timer); worker = null; reject(new Error('Playground error: ' + e.message)); };
-    w.postMessage({ code: code, input: input });
+var lessonIndex = 0;
+function lessonDone() { try { return JSON.parse(load('aak-lessons') || '{}'); } catch (e) { return {}; } }
+function renderLessonList() {
+  var done = lessonDone();
+  var list = document.getElementById('lesson-list');
+  list.innerHTML = '';
+  LESSONS.forEach(function (l, i) {
+    var li = document.createElement('li'), b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('aria-current', i === lessonIndex ? 'true' : 'false');
+    b.innerHTML = '<span class="num">' + String(i + 1).padStart(2, '0') + '</span>' + Adarsh.esc(l.title) + (done[l.id] ? '<span class="done">✓</span>' : '');
+    b.onclick = function () { openLesson(i); };
+    li.appendChild(b); list.appendChild(li);
   });
 }
-
-async function runCode(event) {
-  if (event) event.preventDefault();
-  var btn = document.getElementById('run-btn'), card = document.getElementById('output-card');
-  var pre = document.getElementById('output-pre'), label = document.getElementById('output-label');
-  var dot = document.getElementById('status-dot');
-  btn.innerHTML = '<span class="spin">◌</span> Running…';
-  btn.disabled = true;
-  pre.className = ''; pre.textContent = '';
-  card.style.display = 'block';
-  label.textContent = 'Output'; dot.className = 'dot';
-  try {
-    onChunk = function (text) { pre.textContent += text; };
-    var data = await runInWorker(editor.value, document.getElementById('stdin').value);
-    onChunk = null;
-    if (data.error) {
-      pre.className = 'error-output'; label.textContent = 'Error'; dot.className = 'dot err';
-      pre.textContent = (data.output ? data.output + '\n' : '') + data.error;
-    } else {
-      label.textContent = 'Output · ' + (data.ms < 1 ? '<1' : Math.round(data.ms)) + ' ms';
-      pre.textContent = data.output || '(no output)';
-    }
-  } catch (err) {
-    pre.className = 'error-output'; label.textContent = 'Error'; dot.className = 'dot err';
-    pre.textContent = err.message;
-  } finally {
-    btn.innerHTML = 'Run code <span aria-hidden="true">→</span>';
-    btn.disabled = false;
-    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+function openLesson(i) {
+  lessonIndex = i;
+  var l = LESSONS[i];
+  document.getElementById('lesson-title').textContent = l.title;
+  document.getElementById('lesson-text').innerHTML = l.body;
+  document.getElementById('lesson-file').textContent = l.id + '.aak';
+  var saved = load('aak-lesson-' + l.id);
+  document.getElementById('lesson-editor').value = saved || l.starter;
+  document.getElementById('lesson-result').style.display = 'none';
+  var v = document.getElementById('lesson-verdict'); v.textContent = lessonDone()[l.id] ? '✓ ho gaya' : ''; v.className = 'verdict ok';
+  renderLessonList();
+}
+document.getElementById('lesson-editor').addEventListener('input', function () { store('aak-lesson-' + LESSONS[lessonIndex].id, this.value); });
+document.getElementById('lesson-editor').addEventListener('keydown', function (e) {
+  if (e.key === 'Tab') { e.preventDefault(); var s = this.selectionStart; this.value = this.value.slice(0, s) + '    ' + this.value.slice(this.selectionEnd); this.selectionStart = this.selectionEnd = s + 4; }
+});
+async function checkLesson() {
+  var l = LESSONS[lessonIndex];
+  var res = document.getElementById('lesson-result'), v = document.getElementById('lesson-verdict');
+  res.style.display = 'block'; res.textContent = 'Chal raha hai…';
+  var data;
+  try { data = await runner.run({ code: document.getElementById('lesson-editor').value }); }
+  catch (e) { res.textContent = e.message; v.textContent = '✗ dobara koshish karo'; v.className = 'verdict no'; return; }
+  var out = data.output || '';
+  var ok = !data.error && (l.check.output !== undefined ? out === l.check.output : l.check.contains.every(function (s) { return out.indexOf(s) >= 0; }));
+  res.textContent = (out || '(no output)') + (data.error ? '\n' + data.error : '');
+  if (ok) {
+    var done = lessonDone(); done[l.id] = true; store('aak-lessons', JSON.stringify(done));
+    v.textContent = '✓ Shabash! Sahi jawab.'; v.className = 'verdict ok'; renderLessonList();
+  } else {
+    var want = l.check.output !== undefined ? 'Chahiye tha:\n' + l.check.output : 'Output mein yeh hona chahiye: ' + l.check.contains.join(', ');
+    res.textContent += '\n\n' + want;
+    v.textContent = '✗ Abhi nahi. Hint dekho?'; v.className = 'verdict no';
   }
 }
+function lessonHint() { toast(LESSONS[lessonIndex].hint); }
+function lessonSolution() {
+  if (confirm('Solution dikhayein? Pehle khud koshish karna zyada faydemand hai.')) document.getElementById('lesson-editor').value = LESSONS[lessonIndex].solution;
+}
+function nextLesson() { if (lessonIndex < LESSONS.length - 1) openLesson(lessonIndex + 1); }
+
+(function buildGallery() {
+  var root = document.getElementById('gallery-list');
+  var cats = [];
+  GALLERY.forEach(function (g) { if (cats.indexOf(g.category) < 0) cats.push(g.category); });
+  cats.forEach(function (cat) {
+    var h = document.createElement('div'); h.className = 'label gallery-cat'; h.textContent = cat; root.appendChild(h);
+    var grid = document.createElement('div'); grid.className = 'cards';
+    GALLERY.filter(function (g) { return g.category === cat; }).forEach(function (g) {
+      var c = document.createElement('div'); c.className = 'card';
+      c.innerHTML = '<h4>' + Adarsh.esc(g.title) + '</h4><p>' + Adarsh.esc(g.description) + '</p>';
+      var b = document.createElement('button'); b.className = 'btn btn-ghost'; b.type = 'button'; b.textContent = 'Kholo aur chalao →';
+      b.onclick = function () { loadIntoEditor(g.code); runCode(); };
+      c.appendChild(b); grid.appendChild(c);
+    });
+    root.appendChild(grid);
+  });
+})();
+
+// ------------------------------------------------------------ misc
 
 function clearOutput() {
   document.getElementById('output-card').style.display = 'none';
   document.getElementById('output-pre').textContent = '';
 }
-function copyCode(btn) {
-  navigator.clipboard.writeText(editor.value).then(function () {
-    var t = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = t; }, 1200);
-  });
+function resetEditor() {
+  if (!confirm('Saari files hata kar shuru se?')) return;
+  loadIntoEditor(snippets.hello);
 }
-function resetEditor() { editor.value = DEFAULT_CODE; updateGutter(); clearOutput(); }
 function toggleTheme() {
   var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
-  try { localStorage.setItem('aak-theme', next); } catch (e) {}
+  store('aak-theme', next);
 }
 document.addEventListener('keydown', function (e) {
-  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); runCode(); }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    if (document.activeElement && document.activeElement.id === 'lesson-editor') checkLesson(); else runCode();
+  }
 });
-if (!editor.value) editor.value = DEFAULT_CODE;
-updateGutter();
-getWorker().addEventListener('message', function (e) {
-  if (e.data.ready) document.getElementById('ready-label').textContent = 'Ready · runs locally';
-});
+
+(async function init() {
+  document.getElementById('live-note').textContent = runner.live ? '(khali ho to program aapse poochhega)' : '';
+  var m = /#code=([\w-]+)/.exec(location.hash);
+  var restored = null;
+  if (m) { try { restored = await Adarsh.decodeFiles(m[1]); } catch (e) { toast('Link kharab hai'); } }
+  if (!restored) { try { restored = JSON.parse(load('aak-files') || 'null'); } catch (e) { restored = null; } }
+  if (restored && restored.length) files = restored;
+  current = 0; editor.value = files[0].code;
+  renderTabs(); refresh();
+  openLesson(0);
+  runner.onReady = function () { document.getElementById('ready-label').textContent = 'Ready · runs locally'; };
+  runner.start();
+})();
 </script>
 </body>
 </html>

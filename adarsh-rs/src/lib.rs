@@ -112,6 +112,8 @@ pub struct RunOptions {
     pub loader: Rc<dyn ModuleLoader>,
     /// lines for `padho()`
     pub input: Vec<String>,
+    /// where `padho()` reads from instead of `input` (e.g. asking the web page)
+    pub input_fn: Option<Box<dyn FnMut() -> Option<String>>>,
     /// also send output here as it is produced
     pub stream: Option<Box<dyn Write>>,
     /// record up to this many steps (0 = don't record)
@@ -126,6 +128,7 @@ impl Default for RunOptions {
             source: String::new(),
             loader: Rc::new(NoLoader),
             input: Vec::new(),
+            input_fn: None,
             stream: None,
             record_steps: 0,
             seed: None,
@@ -168,8 +171,13 @@ pub fn run_full(opts: RunOptions) -> RunResult {
     if let Some(seed) = opts.seed {
         interp.set_seed(seed);
     }
-    let mut lines = opts.input.into_iter();
-    interp.input = Box::new(move || lines.next());
+    match opts.input_fn {
+        Some(f) => interp.input = f,
+        None => {
+            let mut lines = opts.input.into_iter();
+            interp.input = Box::new(move || lines.next());
+        }
+    }
     let steps: Rc<RefCell<Vec<Step>>> = Rc::default();
     if opts.record_steps > 0 {
         let steps = steps.clone();

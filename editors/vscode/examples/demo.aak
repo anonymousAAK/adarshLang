@@ -127,3 +127,112 @@ pakdo {
 } chhoddo (err) {
     dikhao(err);
 }
+
+# ============================================================
+# Language 0.3 additions
+# ============================================================
+
+# ---- pakka (constant) and vikalp (enum)
+pakka PI_ISH = 3.14;
+vikalp Rang { Laal, Hara };
+badlo pasand = Rang.Laal;
+dikhao(pasand);
+
+# ---- karo ... jabtak (do-while): body kam se kam ek baar chalti hai
+badlo tries = 0;
+karo {
+    tries += 1;
+} jabtak (tries < 3);
+dikhao(tries);
+
+# ---- type annotations, hai (type check), -> return type
+badlo umar: number = 20;
+dikhao(umar hai number);
+kaam bataao(x: number) -> string {
+    wapas "number hai: { x }";
+}
+dikhao(bataao(umar));
+
+# ---- labels: bahar: jabtak / ginnati / ke_liye / karo, bas bahar; aage_badho bahar;
+badlo bahar_count = 0;
+bahar: ginnati (badlo a = 0; a < 3; a += 1) {
+    ginnati (badlo b = 0; b < 3; b += 1) {
+        agar (b == 1) { aage_badho bahar; }
+        bahar_count += 1;
+    }
+}
+dikhao(bahar_count);
+
+badlo tala = 0;
+ruk: jabtak (sahi_hai_be) {
+    tala += 1;
+    agar (tala == 4) { bas ruk; }
+}
+dikhao(tala);
+
+# ---- operators: .. (range), ... (spread), ?. (safe access), ?? (default),
+#      // (integer division), => (lambda)
+dikhao(1..4);
+badlo ekdam = [0, ...items];
+dikhao(ekdam);
+dikhao(7 // 2);
+badlo koi_v = khali;
+dikhao(koi_v?.naam ?? "naam nahi mila");
+badlo sq = (x) => x * x;
+dikhao(sq(4));
+
+# ---- raw strings r"..." and r"""...""" (no escapes, no {} interpolation)
+badlo raw_path = r"C:\naya\{folder}";
+dikhao(raw_path);
+badlo raw_block = r"""pehli line \n
+doosri line {x}""";
+dikhao(raw_block);
+
+# ---- triple-quoted string: escapes and {expr} interpolation work, multiline
+badlo likhawat = """pehli line
+doosri line: { umar + 1 }\tend""";
+dikhao(likhawat);
+
+# ---- interpolation with format spec: {x:.2}, {daam:>8}
+badlo daam = 12.5;
+dikhao("[{daam:>8}] [{daam:.2}]");
+
+# ---- comments: #[ block ]# and ## doc comment (// is NOT a comment)
+#[ Yeh block comment hai.
+   Kai lines tak chal sakta hai. ]#
+## Doc comment: neeche wala function ek jod deta hai.
+kaam jod(a, b) {
+    wapas a + b;
+}
+
+# ---- dete_raho (yield): function ke saare yield kiye values list mein milte hain
+kaam ginti_do() {
+    dete_raho 1;
+    dete_raho 2;
+}
+dikhao(ginti_do());
+
+# ---- inheritance and typed catch / aakhir (finally)
+dhacha Student : Vyakti { roll, umar = 0 };
+badlo st = Student { naam: "Riya", roll: 7 };
+dikhao(st.roll);
+
+pakdo {
+    badlo bhaag = 1 / 0;
+} chhoddo (e: Galti) {
+    dikhao("galti pakdi");
+} aakhir {
+    dikhao("aakhir wala block");
+}
+
+# ---- lao ... as (module alias)
+lao "ganit" as g;
+dikhao(g.dugna(4));
+
+# ---- constants and Devanagari keywords
+dikhao(PI_ISH);
+बदलो संख्या = 7;
+अगर (संख्या है number) { दिखाओ("देवनागरी ठीक है"); } वरना { दिखाओ("गड़बड़"); }
+
+# kachhua (turtle) ke methods: kachhua.aage(100), kachhua.daayen(90), kachhua.kalam_upar()
+# Yahan drawing nahi chalayi kyunki woh .svg file likhti hai. Snippet "kachhua" se square banao.

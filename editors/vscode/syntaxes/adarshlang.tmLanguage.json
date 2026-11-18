@@ -2,25 +2,80 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "AdarshLang",
   "scopeName": "source.adarshlang",
-  "fileTypes": ["aak"],
+  "fileTypes": [
+    "aak"
+  ],
   "patterns": [
-    { "include": "#comments" },
-    { "include": "#strings" },
-    { "include": "#numbers" },
-    { "include": "#declarations" },
-    { "include": "#record-construction" },
-    { "include": "#control-keywords" },
-    { "include": "#storage-keywords" },
-    { "include": "#logical-operators" },
-    { "include": "#operators" },
-    { "include": "#constants" },
-    { "include": "#this" },
-    { "include": "#builtins" },
-    { "include": "#function-calls" }
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#label-jump"
+    },
+    {
+      "include": "#labels"
+    },
+    {
+      "include": "#typed-annotations"
+    },
+    {
+      "include": "#record-construction"
+    },
+    {
+      "include": "#devanagari-keywords"
+    },
+    {
+      "include": "#control-keywords"
+    },
+    {
+      "include": "#storage-keywords"
+    },
+    {
+      "include": "#logical-operators"
+    },
+    {
+      "include": "#type-check"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#constants"
+    },
+    {
+      "include": "#this"
+    },
+    {
+      "include": "#kachhua"
+    },
+    {
+      "include": "#builtins"
+    },
+    {
+      "include": "#function-calls"
+    }
   ],
   "repository": {
     "comments": {
       "patterns": [
+        {
+          "name": "comment.block.adarshlang",
+          "begin": "#\\[",
+          "end": "\\]#"
+        },
+        {
+          "name": "comment.line.documentation.adarshlang",
+          "match": "##.*$"
+        },
         {
           "name": "comment.line.number-sign.adarshlang",
           "match": "#.*$"
@@ -28,27 +83,81 @@
       ]
     },
     "strings": {
+      "patterns": [
+        {
+          "include": "#string-raw-triple"
+        },
+        {
+          "include": "#string-raw"
+        },
+        {
+          "include": "#string-triple"
+        },
+        {
+          "include": "#string-double"
+        }
+      ]
+    },
+    "string-raw-triple": {
+      "name": "string.quoted.raw.triple.adarshlang",
+      "begin": "(?<![\\wऀ-ॿ])r\"\"\"",
+      "end": "\"\"\""
+    },
+    "string-raw": {
+      "name": "string.quoted.raw.adarshlang",
+      "begin": "(?<![\\wऀ-ॿ])r\"",
+      "end": "\""
+    },
+    "string-triple": {
+      "name": "string.quoted.double.triple.adarshlang",
+      "begin": "\"\"\"",
+      "end": "\"\"\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.adarshlang",
+          "match": "\\\\[ntr\\\\\\\"0{}]"
+        },
+        {
+          "include": "#interpolation"
+        }
+      ]
+    },
+    "string-double": {
       "name": "string.quoted.double.adarshlang",
       "begin": "\"",
       "end": "\"",
       "patterns": [
         {
           "name": "constant.character.escape.adarshlang",
-          "match": "\\\\[ntr\\\\\"0{}]"
+          "match": "\\\\[ntr\\\\\\\"0{}]"
         },
         {
-          "name": "meta.interpolation.adarshlang",
-          "begin": "\\{",
-          "end": "\\}",
-          "beginCaptures": {
-            "0": { "name": "punctuation.section.interpolation.begin.adarshlang" }
-          },
-          "endCaptures": {
-            "0": { "name": "punctuation.section.interpolation.end.adarshlang" }
-          },
-          "patterns": [
-            { "include": "$self" }
-          ]
+          "include": "#interpolation"
+        }
+      ]
+    },
+    "interpolation": {
+      "name": "meta.interpolation.adarshlang",
+      "begin": "\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.interpolation.begin.adarshlang"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.interpolation.end.adarshlang"
+        }
+      },
+      "patterns": [
+        {
+          "comment": "format spec after the expression, e.g. {x:.2} or {daam:>8}",
+          "name": "constant.other.format-spec.adarshlang",
+          "match": ":[^}\\\"\\n]*"
+        },
+        {
+          "include": "$self"
         }
       ]
     },
@@ -66,25 +175,127 @@
           "comment": "kaam Type.method(",
           "match": "\\b(kaam)\\s+([A-Za-z_]\\w*)\\.([A-Za-z_]\\w*)\\s*(?=\\()",
           "captures": {
-            "1": { "name": "storage.type.adarshlang" },
-            "2": { "name": "entity.name.type.adarshlang" },
-            "3": { "name": "entity.name.function.adarshlang" }
+            "1": {
+              "name": "storage.type.adarshlang"
+            },
+            "2": {
+              "name": "entity.name.type.adarshlang"
+            },
+            "3": {
+              "name": "entity.name.function.adarshlang"
+            }
           }
         },
         {
           "comment": "kaam name(",
           "match": "\\b(kaam)\\s+([A-Za-z_]\\w*)\\s*(?=\\()",
           "captures": {
-            "1": { "name": "storage.type.adarshlang" },
-            "2": { "name": "entity.name.function.adarshlang" }
+            "1": {
+              "name": "storage.type.adarshlang"
+            },
+            "2": {
+              "name": "entity.name.function.adarshlang"
+            }
+          }
+        },
+        {
+          "comment": "dhacha Child : Parent (inheritance)",
+          "match": "\\b(dhacha)\\s+([A-Za-z_]\\w*)\\s*(:)\\s*([A-Za-z_]\\w*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.adarshlang"
+            },
+            "2": {
+              "name": "entity.name.type.adarshlang"
+            },
+            "3": {
+              "name": "punctuation.separator.inheritance.adarshlang"
+            },
+            "4": {
+              "name": "entity.other.inherited-class.adarshlang"
+            }
           }
         },
         {
           "comment": "dhacha Name",
           "match": "\\b(dhacha)\\s+([A-Za-z_]\\w*)",
           "captures": {
-            "1": { "name": "storage.type.adarshlang" },
-            "2": { "name": "entity.name.type.adarshlang" }
+            "1": {
+              "name": "storage.type.adarshlang"
+            },
+            "2": {
+              "name": "entity.name.type.adarshlang"
+            }
+          }
+        },
+        {
+          "comment": "vikalp Name (enum)",
+          "match": "\\b(vikalp)\\s+([A-Za-z_]\\w*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.adarshlang"
+            },
+            "2": {
+              "name": "entity.name.type.adarshlang"
+            }
+          }
+        }
+      ]
+    },
+    "label-jump": {
+      "comment": "bas bahar; / aage_badho bahar;",
+      "match": "\\b(bas|aage_badho)\\b(?:\\s+([A-Za-z_]\\w*)\\b)?",
+      "captures": {
+        "1": {
+          "name": "keyword.control.adarshlang"
+        },
+        "2": {
+          "name": "entity.name.label.adarshlang"
+        }
+      }
+    },
+    "labels": {
+      "comment": "bahar: jabtak / ginnati / ke_liye / karo",
+      "match": "\\b([A-Za-z_]\\w*)\\s*(:)(?=\\s*\\b(?:jabtak|ginnati|ke_liye|karo)\\b)",
+      "captures": {
+        "1": {
+          "name": "entity.name.label.adarshlang"
+        },
+        "2": {
+          "name": "punctuation.separator.label.adarshlang"
+        }
+      }
+    },
+    "typed-annotations": {
+      "patterns": [
+        {
+          "comment": "name: Type (declarations, params, typed catch)",
+          "match": "\\b([A-Za-z_]\\w*)\\s*(:)\\s*(?:\\b(number|string|boolean|list|dict|tuple|set|kaam|khali|koi|dhacha|vikalp|Galti)\\b|([A-Z]\\w*)\\b)",
+          "captures": {
+            "2": {
+              "name": "punctuation.separator.type.adarshlang"
+            },
+            "3": {
+              "name": "support.type.adarshlang"
+            },
+            "4": {
+              "name": "entity.name.type.adarshlang"
+            }
+          }
+        },
+        {
+          "comment": "-> ReturnType",
+          "match": "(->)\\s*(?:\\b(number|string|boolean|list|dict|tuple|set|kaam|khali|koi|dhacha|vikalp|Galti)\\b|([A-Z]\\w*)\\b)",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.arrow.adarshlang"
+            },
+            "2": {
+              "name": "support.type.adarshlang"
+            },
+            "3": {
+              "name": "entity.name.type.adarshlang"
+            }
           }
         }
       ]
@@ -98,11 +309,19 @@
         }
       ]
     },
+    "devanagari-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.adarshlang",
+          "match": "(?<![\\wऀ-ॿ])(?:बदलो|काम|वापस|अगर|वरना|जबतक|दिखाओ|बस|सही|झूठ|गिनती|के_लिए|चुनो|पकड़ो|छोड़ो|लाओ|खाली|और|या|नहीं|पक्का|करो|है|आखिर|आगे_बढ़ो|ढांचा|बाकी)(?![\\wऀ-ॿ])"
+        }
+      ]
+    },
     "control-keywords": {
       "patterns": [
         {
           "name": "keyword.control.adarshlang",
-          "match": "\\b(?:agar|warna_case|warna|jabtak|ginnati|ke_liye|in|chuno|case|bas|aage_badho|wapas|pakdo|chhoddo|lao)\\b"
+          "match": "\\b(?:agar|warna_case|warna|jabtak|ginnati|ke_liye|in|chuno|case|bas|aage_badho|wapas|pakdo|chhoddo|lao|karo|dete_raho|aakhir|as|dikhao)\\b"
         }
       ]
     },
@@ -110,7 +329,7 @@
       "patterns": [
         {
           "name": "storage.type.adarshlang",
-          "match": "\\b(?:badlo|kaam|dhacha|baaki)\\b"
+          "match": "\\b(?:badlo|pakka|kaam|dhacha|vikalp|baaki)\\b"
         }
       ]
     },
@@ -122,11 +341,27 @@
         }
       ]
     },
+    "type-check": {
+      "patterns": [
+        {
+          "comment": "x hai number",
+          "match": "\\b(hai)\\b(?:\\s+\\b(number|string|boolean|list|dict|tuple|set|kaam|khali|koi|dhacha|vikalp|Galti)\\b)?",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.adarshlang"
+            },
+            "2": {
+              "name": "support.type.adarshlang"
+            }
+          }
+        }
+      ]
+    },
     "operators": {
       "patterns": [
         {
           "name": "keyword.operator.adarshlang",
-          "match": "&&|\\|\\||\\*\\*|==|!=|<=|>=|\\+=|-=|\\*=|/=|%=|[<>+\\-*/%=!]"
+          "match": "\\.\\.\\.|\\.\\.|\\?\\?|\\?\\.|//|=>|->|&&|\\|\\||\\*\\*|==|!=|<=|>=|\\+=|-=|\\*=|/=|%=|[<>+\\-*/%=!]"
         }
       ]
     },
@@ -134,7 +369,7 @@
       "patterns": [
         {
           "name": "constant.language.adarshlang",
-          "match": "\\b(?:sahi_hai_be|jhuth|khali)\\b"
+          "match": "\\b(?:sahi_hai_be|jhuth|khali|PI|E)\\b"
         }
       ]
     },
@@ -146,11 +381,26 @@
         }
       ]
     },
+    "kachhua": {
+      "comment": "turtle graphics object and its methods (kachhua.aage(...))",
+      "match": "\\b(kachhua)\\b(?:(\\.)(aage|peeche|daayen|baayen|kalam_upar|kalam_neeche|rang|mota|jaao|ghar)\\b)?",
+      "captures": {
+        "1": {
+          "name": "variable.language.kachhua.adarshlang"
+        },
+        "2": {
+          "name": "punctuation.accessor.adarshlang"
+        },
+        "3": {
+          "name": "variable.language.kachhua.method.adarshlang"
+        }
+      }
+    },
     "builtins": {
       "patterns": [
         {
           "name": "support.function.builtin.adarshlang",
-          "match": "\\b(?:dikhao|length|push|pop|rakho|nikalo|hatao|map|filter|reduce|random_number|current_time|abs|floor|ceil|upper|lower|join|split|prakar|shabdme|sankhya|range|keys|values|contains|sort|reverse|slice|replace|trim|find|min_val|max_val|round_val|padho)\\b"
+          "match": "\\b(?:length|push|pop|insert|rakho|nikalo|hatao|keys|values|contains|find|count|sort|reverse|slice|range|join|map|filter|reduce|sum|min|max|any|all|zip|unique|flatten|group_by|list|tuple|set|union|intersection|difference|abs|floor|ceil|round_val|round|min_val|max_val|sqrt|sin|cos|tan|asin|acos|atan|log|exp|gcd|lcm|is_prime|random_number|random_int|random_choice|shuffle|upper|lower|title|trim|split|replace|starts_with|ends_with|pad_left|pad_right|repeat|char_code|from_code|format|lakh_format|rupaye|shabdon_mein|prakar|shabdme|sankhya|padho|padho_number|rang_mein|current_time|ruko|band_karo|jaancho|aaj|abhi|tareekh|din_ka_naam|tareekh_jodo|din_ka_fark|json_banao|json_padho|file_padho|file_likho|file_jodo|file_hai|internet_se)\\b"
         }
       ]
     },

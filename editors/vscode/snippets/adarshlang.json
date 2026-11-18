@@ -84,5 +84,60 @@
       "}"
     ],
     "description": "pakdo ... chhoddo (try / catch) block"
+  },
+  "try-catch-finally": {
+    "prefix": "pakdoaakhir",
+    "body": [
+      "pakdo {",
+      "\t$1",
+      "} chhoddo (${2:err}) {",
+      "\t$3",
+      "} aakhir {",
+      "\t$0",
+      "}"
+    ],
+    "description": "pakdo ... chhoddo ... aakhir (try / catch / finally) block"
+  },
+  "do-while": {
+    "prefix": "karo",
+    "body": [
+      "karo {",
+      "\t$0",
+      "} jabtak (${1:condition});"
+    ],
+    "description": "karo ... jabtak (do-while loop, body runs at least once)"
+  },
+  "enum": {
+    "prefix": "vikalp",
+    "body": [
+      "vikalp ${1:Rang} { ${2:Laal}, ${3:Hara} };"
+    ],
+    "description": "vikalp (enum) declaration"
+  },
+  "lambda": {
+    "prefix": "lambda",
+    "body": [
+      "(${1:x}) => ${2:x * 2}"
+    ],
+    "description": "lambda (arrow function)"
+  },
+  "test": {
+    "prefix": "test",
+    "body": [
+      "kaam test_${1:naam}() {",
+      "\tjaancho(${2:sharat}, \"${3:sandesh}\");",
+      "}"
+    ],
+    "description": "test function that checks a condition with jaancho"
+  },
+  "kachhua-square": {
+    "prefix": "kachhua",
+    "body": [
+      "ginnati (badlo ${1:i} = 0; $1 < 4; $1 += 1) {",
+      "\tkachhua.aage(100);",
+      "\tkachhua.daayen(90);",
+      "}"
+    ],
+    "description": "kachhua (turtle) draws a square: 4 times aage(100) and daayen(90)"
   }
 }

@@ -1,14 +1,16 @@
 {
   "name": "adarshlang",
   "displayName": "AdarshLang",
-  "description": "Syntax highlighting for AdarshLang (.aak), a Hinglish toy language.",
+  "description": "AdarshLang (.aak) support: syntax highlighting, snippets, live errors, hover docs, completion, go to definition, formatting and a Run command.",
   "version": "0.3.0",
   "publisher": "adarshlang",
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.82.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Formatters",
+    "Linters"
   ],
   "contributes": {
     "languages": [
@@ -36,6 +38,59 @@
         "language": "adarshlang",
         "path": "./snippets/adarshlang.json"
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "adarshlang.run",
+        "title": "AdarshLang: Run file",
+        "icon": "$(play)"
+      },
+      {
+        "command": "adarshlang.restartServer",
+        "title": "AdarshLang: Restart language server"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "adarshlang.run",
+          "when": "editorLangId == adarshlang",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "adarshlang.run",
+        "key": "ctrl+f5",
+        "mac": "cmd+f5",
+        "when": "editorLangId == adarshlang"
+      }
+    ],
+    "configuration": {
+      "title": "AdarshLang",
+      "properties": {
+        "adarshlang.path": {
+          "type": "string",
+          "default": "adarsh",
+          "description": "Path to the adarsh executable (used for the language server and the Run command)."
+        },
+        "adarshlang.languageServer": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use `adarsh lsp` for live errors, hover, completion, go to definition and formatting."
+        }
+      }
+    }
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:adarshlang"
+  ],
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "scripts": {
+    "package": "npx @vscode/vsce package"
   }
 }

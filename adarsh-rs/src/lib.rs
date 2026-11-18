@@ -9,11 +9,15 @@
 
 pub mod ast;
 pub mod builtins;
+pub mod docs;
 pub mod error;
 pub mod explain;
+pub mod fmt;
 pub mod interp;
 pub mod lexer;
 pub mod loader;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod lsp;
 pub mod parser;
 pub mod semantics;
 pub mod stdlib;
@@ -21,6 +25,8 @@ pub mod topython;
 pub mod value;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod webexport;
 
 pub use error::{AdarshError, ErrorKind};
 pub use interp::{Flow, Interpreter};

@@ -1,8 +1,11 @@
 # AdarshLang for VS Code
 
-Syntax highlighting, bracket matching, and snippets for **AdarshLang** (`.aak` files), a Hinglish toy language.
+Support for **AdarshLang** (`.aak` files), the Hinglish programming language.
 
 ## Features
+
+- **Language server** (needs the `adarsh` command installed): errors and warnings as you type, hover docs for builtins, keywords and your own functions (`##` comments), completion, go to definition, an outline of functions and records, and **Format Document** (`adarsh fmt`).
+- **Run file**: the ▶ button in the editor title (or `Ctrl+F5` / `Cmd+F5`) runs the file in a terminal.
 
 - Highlighting for comments (`#` line, `#[ ... ]#` block, `##` doc), strings (escapes and `{ ... }` interpolation with `{x:.2}` format specs, raw `r"..."` and `r"""..."""` strings, multi-line `"""..."""` strings), numbers (`1_000`, `.5`, `2.5e-3`), keywords (including Devanagari spellings), operators (`..`, `...`, `?.`, `??`, `//`, `=>`), constants, builtins, function, record and enum names.
 - Language 0.3: `pakka`, `karo ... jabtak`, `hai`, `vikalp`, `dete_raho`, `aakhir`, `lao ... as`, loop labels (`bahar: jabtak`, `bas bahar;`, `aage_badho bahar;`), type annotations (`badlo x: number`, `-> string`), inheritance (`dhacha A : B`), typed catch (`chhoddo (e: Galti)`), and `kachhua` turtle methods.
@@ -13,7 +16,9 @@ A sample program that uses every highlighted construct is in `examples/demo.aak`
 
 ## Install locally
 
-The extension has no code and no dependencies. It is only a grammar, language configuration, and snippets.
+1. Install `adarsh` (see the main README) so `adarsh lsp` works in a terminal. If it isn't on your PATH, set **Settings → AdarshLang: Path** to the executable.
+2. In this folder run `npm install` once (it fetches `vscode-languageclient`). Without it, highlighting and snippets still work, but the language server features don't.
+3. Install the folder with one of the options below.
 
 ### Option 1: Copy or symlink the folder
 
@@ -45,6 +50,11 @@ npx @vscode/vsce package
 ```
 
 This creates `adarshlang-0.3.0.vsix`. Then in VS Code open the Extensions view, choose the `...` menu, select **Install from VSIX...**, and pick the file.
+
+## Settings
+
+- `adarshlang.path` (default `adarsh`): the executable used for the language server and **Run file**.
+- `adarshlang.languageServer` (default on): turn the language server off to keep only highlighting.
 
 ## Development
 

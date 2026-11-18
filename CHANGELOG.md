@@ -34,6 +34,12 @@
 - `jaancho` plus `adarsh test` (runs `test_*` functions in `*_test.aak` files).
 - `adarsh python file.aak` shows the same program in Python.
 
+### Tooling
+- `adarsh fmt` formatter, `adarsh docs` (Markdown from `##` comments), `adarsh debug` step-through debugger, `adarsh web` single-file HTML export.
+- Packages: `adarsh add` / `remove` / `install` with an `adarsh.json` manifest; `lao "name"` finds packages in `aak_modules/`.
+- Language server (`adarsh lsp`): diagnostics, hover, completion, go-to-definition, formatting, document symbols. The VS Code extension uses it.
+- Jupyter kernel in `editors/jupyter` (cells share state, turtle drawings show as images).
+
 ## 0.2.0
 - Rust becomes the official implementation; Hinglish errors with line and column; interpolation; records with methods; `aur`/`ya`/`nahin`; WebAssembly playground; CLI `build`; VS Code extension; CI and releases.
 

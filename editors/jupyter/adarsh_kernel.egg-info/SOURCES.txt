@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+adarsh_kernel/__init__.py
+adarsh_kernel/__main__.py
+adarsh_kernel/install.py
+adarsh_kernel/kernel.py
+adarsh_kernel.egg-info/PKG-INFO
+adarsh_kernel.egg-info/SOURCES.txt
+adarsh_kernel.egg-info/dependency_links.txt
+adarsh_kernel.egg-info/requires.txt
+adarsh_kernel.egg-info/top_level.txt

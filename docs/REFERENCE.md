@@ -337,6 +337,14 @@ adarsh test [files/folders]    run *_test.aak tests
 adarsh samjhao [E001]          explain an error code
 adarsh python <file.aak>       show the same program in Python
 adarsh build <file.aak> [-o x] make a standalone executable
+adarsh fmt [--check] <files>   format code in place (or only report)
+adarsh docs <file.aak> [-o x]  Markdown docs from ## comments
+adarsh debug <file.aak>        step-through debugger (n, c, p name, b line, q)
+adarsh web <file.aak> [-o x]   self-contained HTML page that runs the program
+adarsh add <spec> [as name]    add a package (git URL, user/repo or folder)
+adarsh remove <name>           remove a package
+adarsh install                 install the packages listed in adarsh.json
+adarsh lsp                     language server for editors
 adarsh                         REPL
 adarsh --english ...           add English titles to errors
 ```

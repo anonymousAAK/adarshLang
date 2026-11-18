@@ -21,6 +21,14 @@ Usage:
   adarsh test [files/folders]    *_test.aak files mein test_* functions chalao
   adarsh samjhao [E001]          error code ka matlab aur example
   adarsh python <file.aak>       wahi program Python mein dekho
+  adarsh fmt [files] [--check]   code ko saaf format karo
+  adarsh docs <file.aak> [-o x]  ## comments se Markdown docs banao
+  adarsh debug <file.aak>        line by line chalao, variables dekho
+  adarsh web <file.aak> [-o x]   akeli HTML file banao jo browser mein chale
+  adarsh add <user/repo> [as n]  package jodo (aak_modules/ mein)
+  adarsh remove <naam>           package hatao
+  adarsh install                 adarsh.json ke saare packages lao
+  adarsh lsp                     editors ke liye language server
   adarsh build <file.aak> [-o out]
                                  standalone executable banao (no install needed to run it)
   adarsh repl                    interactive REPL
@@ -465,6 +473,435 @@ fn cmd_python(path: &str) -> ExitCode {
     }
 }
 
+// ---------------------------------------------------------------- fmt / docs / web
+
+/// `.aak` files under `path` (skipping hidden folders, target/ and aak_modules/).
+fn aak_files(path: &Path, out: &mut Vec<PathBuf>) {
+    if path.is_dir() {
+        let Ok(entries) = std::fs::read_dir(path) else { return };
+        let mut entries: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+        entries.sort();
+        for p in entries {
+            let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            if p.is_dir() {
+                if !name.starts_with('.') && name != "target" && name != "aak_modules" {
+                    aak_files(&p, out);
+                }
+            } else if name.ends_with(".aak") {
+                out.push(p);
+            }
+        }
+    } else {
+        out.push(path.to_path_buf());
+    }
+}
+
+fn cmd_fmt(args: &[&str]) -> ExitCode {
+    let check = args.contains(&"--check");
+    let paths: Vec<&str> = args.iter().copied().filter(|a| *a != "--check").collect();
+    let mut files = Vec::new();
+    if paths.is_empty() {
+        aak_files(Path::new("."), &mut files);
+    } else {
+        for p in paths {
+            aak_files(Path::new(p), &mut files);
+        }
+    }
+    let (mut changed, mut failed) = (0, 0);
+    for f in &files {
+        let name = f.to_string_lossy().to_string();
+        let Ok(src) = std::fs::read_to_string(f) else {
+            eprintln!("{name}: padh nahi paaye");
+            failed += 1;
+            continue;
+        };
+        let out = adarshlang::fmt::format_source(&src);
+        if out == src {
+            continue;
+        }
+        // never write something that no longer parses
+        let before_ok = adarshlang::parser::parse(&src, adarshlang::error::register_source(&name, &src)).is_ok();
+        let after_ok = adarshlang::parser::parse(&out, adarshlang::error::register_source(&name, &out)).is_ok();
+        if before_ok && !after_ok {
+            eprintln!("{name}: formatter ne galti kar di, file nahi badli (yeh bug report karo)");
+            failed += 1;
+            continue;
+        }
+        changed += 1;
+        if check {
+            println!("format chahiye: {name}");
+        } else if let Err(e) = std::fs::write(f, out) {
+            eprintln!("{name}: likh nahi paaye: {e}");
+            failed += 1;
+        } else {
+            println!("formatted: {name}");
+        }
+    }
+    if check {
+        println!("{} files dekhi, {changed} ko format chahiye", files.len());
+        return if changed > 0 || failed > 0 { ExitCode::from(1) } else { ExitCode::SUCCESS };
+    }
+    println!("{} files dekhi, {changed} formatted", files.len());
+    if failed > 0 {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+fn output_flag<'a>(args: &[&'a str]) -> (Vec<&'a str>, Option<&'a str>) {
+    let mut rest = Vec::new();
+    let mut out = None;
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "-o" && i + 1 < args.len() {
+            out = Some(args[i + 1]);
+            i += 2;
+        } else {
+            rest.push(args[i]);
+            i += 1;
+        }
+    }
+    (rest, out)
+}
+
+fn cmd_docs(args: &[&str]) -> ExitCode {
+    let (rest, out) = output_flag(args);
+    let Some(path) = rest.first() else {
+        eprintln!("Usage: adarsh docs <file.aak> [-o docs.md]");
+        return ExitCode::from(2);
+    };
+    let src = match read_program(path) {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    let program = match adarshlang::check(path, &src, Rc::new(FsLoader::new(base_dir(path)))) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{}", e.render());
+            return ExitCode::from(1);
+        }
+    };
+    let title = Path::new(path).file_name().unwrap().to_string_lossy().to_string();
+    let md = adarshlang::docs::markdown(&title, &program);
+    match out {
+        Some(o) => match std::fs::write(o, md) {
+            Ok(()) => {
+                println!("Docs likhe: {o}");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("'{o}' nahi likh paaye: {e}");
+                ExitCode::from(2)
+            }
+        },
+        None => {
+            print!("{md}");
+            ExitCode::SUCCESS
+        }
+    }
+}
+
+fn cmd_web(args: &[&str]) -> ExitCode {
+    let (rest, out) = output_flag(args);
+    let Some(path) = rest.first() else {
+        eprintln!("Usage: adarsh web <file.aak> [-o page.html]");
+        return ExitCode::from(2);
+    };
+    let src = match read_program(path) {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    let base = base_dir(path);
+    if let Err(e) = adarshlang::check(path, &src, Rc::new(FsLoader::new(&base))) {
+        eprintln!("{}", e.render());
+        return ExitCode::from(1);
+    }
+    let main_name = Path::new(path).file_name().unwrap().to_string_lossy().to_string();
+    let mut files = vec![(main_name.clone(), src.clone())];
+    collect_modules(&src, &base, &mut files);
+    let html = adarshlang::webexport::html(&main_name, &files);
+    let out_path =
+        out.map(str::to_string).unwrap_or_else(|| Path::new(path).with_extension("html").to_string_lossy().to_string());
+    match std::fs::write(&out_path, html) {
+        Ok(()) => {
+            println!("Web page ban gaya: {out_path}. Kisi bhi browser mein kholo (internet ki zaroorat nahi).");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("'{out_path}' nahi likh paaye: {e}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+// ---------------------------------------------------------------- debugger
+
+fn cmd_debug(path: &str) -> ExitCode {
+    use std::cell::RefCell;
+    use std::collections::HashSet;
+    let src = match read_program(path) {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    let loader: Rc<dyn ModuleLoader> = Rc::new(FsLoader::new(base_dir(path)));
+    let program = match adarshlang::check(path, &src, loader.clone()) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{}", e.render());
+            return ExitCode::from(1);
+        }
+    };
+    println!("adarsh debug: {path}");
+    println!("Commands: Enter/n = agli line, c = chalate raho, b 12 = line 12 par ruko, p naam = variable dekho, v = saare variables, q = band");
+    let lines: Vec<String> = src.lines().map(String::from).collect();
+    #[derive(Default)]
+    struct State {
+        stepping: bool,
+        breaks: HashSet<u32>,
+    }
+    let state = Rc::new(RefCell::new(State { stepping: true, ..Default::default() }));
+    let mut interp = adarshlang::Interpreter::new(loader, Box::new(std::io::stdout()));
+    interp.input = stdin_input();
+    let st = state.clone();
+    interp.on_step = Some(Box::new(move |pos, scope, depth| {
+        let mut s = st.borrow_mut();
+        if !(s.stepping || s.breaks.contains(&pos.line)) {
+            return true;
+        }
+        let text = lines.get(pos.line.saturating_sub(1) as usize).map(String::as_str).unwrap_or("");
+        let _ = std::io::stdout().flush();
+        eprintln!("\n{}{:>4} | {}", "  ".repeat(depth.min(10)), pos.line, text.trim());
+        loop {
+            eprint!("(debug) ");
+            let _ = std::io::stderr().flush();
+            let mut cmd = String::new();
+            if std::io::stdin().lock().read_line(&mut cmd).unwrap_or(0) == 0 {
+                return false;
+            }
+            let cmd = cmd.trim();
+            match cmd.split_once(' ').unwrap_or((cmd, "")) {
+                ("" | "n", _) => {
+                    s.stepping = true;
+                    return true;
+                }
+                ("c", _) => {
+                    s.stepping = false;
+                    return true;
+                }
+                ("q", _) => return false,
+                ("b", n) => match n.trim().parse::<u32>() {
+                    Ok(l) => {
+                        s.breaks.insert(l);
+                        eprintln!("breakpoint: line {l}");
+                    }
+                    Err(_) => eprintln!("line number likho: b 12"),
+                },
+                ("p", name) => {
+                    let vars = adarshlang::interp::visible_vars(scope);
+                    match vars.iter().find(|(k, _)| k == name.trim()) {
+                        Some((k, v)) => eprintln!("{k} = {v}"),
+                        None => eprintln!("'{}' yahan nahi dikhta", name.trim()),
+                    }
+                }
+                ("v", _) => {
+                    let vars = adarshlang::interp::visible_vars(scope);
+                    if vars.is_empty() {
+                        eprintln!("(abhi koi variable nahi)");
+                    }
+                    for (k, v) in vars {
+                        eprintln!("{k} = {v}");
+                    }
+                }
+                _ => eprintln!("Commands: n, c, b <line>, p <naam>, v, q"),
+            }
+        }
+    }));
+    let r = interp.run(&program);
+    interp.flush();
+    match r {
+        Ok(_) => {
+            eprintln!("\nProgram poora hua.");
+            ExitCode::SUCCESS
+        }
+        Err(e) => match e.kind {
+            adarshlang::ErrorKind::Exit(0) => {
+                eprintln!("\nDebug band kiya.");
+                ExitCode::SUCCESS
+            }
+            adarshlang::ErrorKind::Exit(code) => ExitCode::from(code as u8),
+            _ => {
+                eprintln!("{}", e.render());
+                ExitCode::from(1)
+            }
+        },
+    }
+}
+
+// ---------------------------------------------------------------- packages
+
+const MANIFEST: &str = "adarsh.json";
+
+fn read_manifest() -> Vec<(String, String)> {
+    let Ok(text) = std::fs::read_to_string(MANIFEST) else { return Vec::new() };
+    let Ok(Value::Dict(d)) = adarshlang::stdlib::parse_json(&text) else { return Vec::new() };
+    let Some(Value::Dict(pkgs)) = d.borrow().get_str("packages") else { return Vec::new() };
+    let pkgs = pkgs.borrow();
+    pkgs.entries().iter().map(|(k, v)| (adarshlang::value::display(k), adarshlang::value::display(v))).collect()
+}
+
+fn write_manifest(pkgs: &[(String, String)]) -> std::io::Result<()> {
+    let mut d = adarshlang::value::Dict::new();
+    for (k, v) in pkgs {
+        d.insert_str(k, Value::str(v));
+    }
+    let mut root = adarshlang::value::Dict::new();
+    root.insert_str("packages", Value::dict(d));
+    let mut out = String::new();
+    let _ = adarshlang::stdlib::to_json(&Value::dict(root), true, 0, &mut out);
+    std::fs::write(MANIFEST, out + "\n")
+}
+
+fn package_url(spec: &str) -> String {
+    // full URLs, ssh remotes and local folders are used as they are
+    if spec.contains("://") || spec.starts_with("git@") || Path::new(spec).is_dir() {
+        spec.to_string()
+    } else {
+        format!("https://github.com/{}.git", spec.trim_end_matches(".git"))
+    }
+}
+
+fn package_name(spec: &str) -> String {
+    let last = spec.trim_end_matches('/').rsplit(['/', ':']).next().unwrap_or(spec);
+    last.trim_end_matches(".git").to_lowercase().replace('-', "_")
+}
+
+fn clone_package(name: &str, url: &str) -> bool {
+    let dest = Path::new("aak_modules").join(name);
+    if dest.exists() {
+        println!("  {name}: pehle se hai (aak_modules/{name})");
+        return true;
+    }
+    let _ = std::fs::create_dir_all("aak_modules");
+    let ok = std::process::Command::new("git")
+        .args(["clone", "--depth", "1", "--quiet", url])
+        .arg(&dest)
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if ok {
+        println!("  {name}: install hua ({url})");
+    } else {
+        eprintln!("  {name}: '{url}' clone nahi ho paaya (git installed hai? URL sahi hai?)");
+    }
+    ok
+}
+
+fn cmd_add(args: &[&str]) -> ExitCode {
+    let (spec, name) = match args {
+        [spec] => (*spec, package_name(spec)),
+        [spec, "as", name] => (*spec, name.to_string()),
+        _ => {
+            eprintln!("Usage: adarsh add <github-user/repo | git URL> [as naam]");
+            return ExitCode::from(2);
+        }
+    };
+    let url = package_url(spec);
+    if !clone_package(&name, &url) {
+        return ExitCode::from(1);
+    }
+    let mut pkgs: Vec<(String, String)> = read_manifest().into_iter().filter(|(n, _)| *n != name).collect();
+    pkgs.push((name.clone(), url));
+    if let Err(e) = write_manifest(&pkgs) {
+        eprintln!("{MANIFEST} nahi likh paaye: {e}");
+        return ExitCode::from(1);
+    }
+    println!("Use karo: lao \"{name}\";   (ya lao \"{name}/file\";)");
+    ExitCode::SUCCESS
+}
+
+fn cmd_remove(name: &str) -> ExitCode {
+    let pkgs = read_manifest();
+    if !pkgs.iter().any(|(n, _)| n == name) {
+        eprintln!("'{name}' {MANIFEST} mein nahi hai.");
+        return ExitCode::from(1);
+    }
+    let rest: Vec<(String, String)> = pkgs.into_iter().filter(|(n, _)| n != name).collect();
+    if let Err(e) = write_manifest(&rest) {
+        eprintln!("{MANIFEST} nahi likh paaye: {e}");
+        return ExitCode::from(1);
+    }
+    println!("'{name}' {MANIFEST} se hataya. Files hatane ke liye aak_modules/{name} folder delete karo.");
+    ExitCode::SUCCESS
+}
+
+fn cmd_install() -> ExitCode {
+    let pkgs = read_manifest();
+    if pkgs.is_empty() {
+        println!("{MANIFEST} mein koi package nahi. Jodne ke liye: adarsh add user/repo");
+        return ExitCode::SUCCESS;
+    }
+    let ok = pkgs.iter().all(|(n, u)| clone_package(n, u));
+    if ok {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
+    }
+}
+
+// ---------------------------------------------------------------- Jupyter kernel backend
+
+/// JSON-lines protocol used by the Jupyter kernel in editors/jupyter:
+/// each input line is {"code": "..."}; each output line is
+/// {"output": "...", "error": null|"...", "value": null|"...", "svg": null|"..."}.
+fn cmd_kernel_repl() -> ExitCode {
+    use adarshlang::stdlib::{parse_json, to_json};
+    let buf = adarshlang::SharedBuf::default();
+    let mut session = Session::new(Rc::new(FsLoader::cwd()), Box::new(buf.clone()));
+    let jstr = |s: &str| {
+        let mut o = String::new();
+        let _ = to_json(&Value::str(s), false, 0, &mut o);
+        o
+    };
+    let opt = |s: Option<String>| s.map(|x| jstr(&x)).unwrap_or_else(|| "null".into());
+    let stdin = std::io::stdin();
+    for line in stdin.lock().lines() {
+        let Ok(line) = line else { break };
+        let code = match parse_json(&line) {
+            Ok(Value::Dict(d)) => {
+                d.borrow().get_str("code").map(|v| adarshlang::value::display(&v)).unwrap_or_default()
+            }
+            _ => continue,
+        };
+        session.interp.turtle = Default::default();
+        let mut source = code.trim_end().to_string();
+        if !source.is_empty() && !source.ends_with(';') && !source.ends_with('}') {
+            source.push(';');
+        }
+        let result = session.execute(&source);
+        session.interp.flush();
+        let output = buf.take_string();
+        let (value, error) = match result {
+            Ok(adarshlang::Flow::Normal(v) | adarshlang::Flow::Return(v)) if !matches!(v, Value::Null) => {
+                (Some(session.interp.show_repr(&v)), None)
+            }
+            Ok(_) => (None, None),
+            Err(e) if matches!(e.kind, adarshlang::ErrorKind::Exit(_)) => (None, None),
+            Err(e) => (None, Some(e.render())),
+        };
+        let svg = (!session.interp.turtle.lines.is_empty()).then(|| session.interp.turtle.svg());
+        println!(
+            "{{\"output\":{},\"error\":{},\"value\":{},\"svg\":{}}}",
+            jstr(&output),
+            opt(error),
+            opt(value),
+            opt(svg)
+        );
+        let _ = std::io::stdout().flush();
+    }
+    ExitCode::SUCCESS
+}
+
 // ---------------------------------------------------------------- main
 
 fn real_main(args: Vec<String>) -> ExitCode {
@@ -491,6 +928,18 @@ fn real_main(args: Vec<String>) -> ExitCode {
         ["samjhao", code] => cmd_samjhao(Some(code)),
         ["test", rest @ ..] => cmd_test(rest),
         ["python", file] => cmd_python(file),
+        ["fmt", rest @ ..] => cmd_fmt(rest),
+        ["docs", rest @ ..] => cmd_docs(rest),
+        ["web", rest @ ..] => cmd_web(rest),
+        ["debug", file] => cmd_debug(file),
+        ["add", rest @ ..] => cmd_add(rest),
+        ["remove", name] => cmd_remove(name),
+        ["install"] => cmd_install(),
+        ["lsp"] => {
+            adarshlang::lsp::serve();
+            ExitCode::SUCCESS
+        }
+        ["kernel-repl"] => cmd_kernel_repl(),
         ["check", file] => cmd_check(file),
         ["build", file] => cmd_build(file, None),
         ["build", file, "-o", out] | ["build", "-o", out, file] => cmd_build(file, Some(out)),

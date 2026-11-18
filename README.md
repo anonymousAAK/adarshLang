@@ -42,7 +42,14 @@ adarsh test                      # run test_* functions in *_test.aak files
 adarsh samjhao E011              # explain an error code
 adarsh python hello.aak          # see the same program in Python
 adarsh build hello.aak -o hello  # standalone executable; runs without AdarshLang installed
+adarsh fmt hello.aak             # format code (--check to only report)
+adarsh docs hello.aak            # Markdown docs from ## comments
+adarsh debug hello.aak           # step through line by line
+adarsh web hello.aak             # one HTML file that runs offline in a browser
+adarsh add <git url> as ganit    # add a package to aak_modules/ (then: lao "ganit")
 ```
+
+Editors: the VS Code extension in `editors/vscode` gets errors, hover, completion, go-to-definition and formatting from `adarsh lsp`. Jupyter notebooks: see `editors/jupyter`.
 
 ## The language at a glance
 

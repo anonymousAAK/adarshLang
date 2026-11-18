@@ -1,0 +1,7 @@
+Metadata-Version: 2.4
+Name: adarsh-kernel
+Version: 0.3.0
+Summary: Jupyter kernel for AdarshLang, the Hinglish programming language
+Requires-Python: >=3.8
+Requires-Dist: ipykernel>=6
+Requires-Dist: jupyter_client>=7

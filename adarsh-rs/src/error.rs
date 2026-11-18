@@ -35,10 +35,17 @@ thread_local! {
 
 /// Register a source text so error positions can show the offending line.
 /// Returns the file id stored in every [`Pos`] produced from it.
+/// Registering the same name again replaces its text and keeps its id, so
+/// long-running tools (language server, REPL re-imports) don't grow memory.
 pub fn register_source(name: &str, text: &str) -> u32 {
     SOURCES.with(|s| {
         let mut s = s.borrow_mut();
-        s.push(Rc::new(SourceFile { name: name.into(), text: text.into() }));
+        let file = Rc::new(SourceFile { name: name.into(), text: text.into() });
+        if let Some(i) = s.iter().position(|f| &*f.name == name) {
+            s[i] = file;
+            return i as u32;
+        }
+        s.push(file);
         (s.len() - 1) as u32
     })
 }

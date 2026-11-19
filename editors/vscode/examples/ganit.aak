@@ -1,0 +1,4 @@
+# Chhota module, demo.aak mein `lao "ganit" as g;` se load hota hai.
+kaam dugna(x) {
+    wapas x * 2;
+}

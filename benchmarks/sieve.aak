@@ -1,0 +1,16 @@
+## Sieve of Eratosthenes
+kaam ginti(n) {
+    badlo prime = [];
+    ke_liye (badlo i in 0..n) { prime.push(sahi_hai_be); }
+    badlo p = 2;
+    jabtak (p * p <= n) {
+        agar (prime[p]) {
+            ke_liye (badlo j in range(p * p, n + 1, p)) { prime[j] = jhuth; }
+        }
+        p = p + 1;
+    }
+    badlo kitne = 0;
+    ke_liye (badlo i in 2..n) { agar (prime[i]) { kitne = kitne + 1; } }
+    wapas kitne;
+}
+dikhao(ginti(1000000));

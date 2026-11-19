@@ -1,5 +1,6 @@
-Soch: 'naam_nahin' naam ka variable nahi mila. Pehle 'badlo naam_nahin = ...;' se banao.
+Soch [E001]: 'naam_nahin' naam ka variable nahi mila. Pehle 'badlo naam_nahin = ...;' se banao.
   --> err_undeclared.aak:5:8
    |
  5 | dikhao(naam_nahin);
    |        ^
+  Aur jaankari: adarsh samjhao E001

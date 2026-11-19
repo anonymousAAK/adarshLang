@@ -1,0 +1,5 @@
+Soch: Dhacha 'Vyakti' mein 'umr' field nahi hai. Fields: naam, umar. Kya aapka matlab 'umar' tha?
+  --> err_field_typo.aak:2:36
+   |
+ 2 | badlo p = Vyakti { naam: "A", umr: 5 };
+   |                                    ^

@@ -25,8 +25,25 @@ impl FsLoader {
 }
 
 impl ModuleLoader for FsLoader {
+    /// Look next to the importing file first, then in `aak_modules/` folders
+    /// (installed with `adarsh add`) in this folder and every parent folder.
+    /// `lao "pkg"` also finds `aak_modules/pkg/main.aak` and `aak_modules/pkg/pkg.aak`.
     fn load(&self, path: &str) -> Option<String> {
-        std::fs::read_to_string(self.base.join(path)).ok()
+        if let Ok(s) = std::fs::read_to_string(self.base.join(path)) {
+            return Some(s);
+        }
+        let stem = path.trim_end_matches(".aak");
+        let mut dir = std::fs::canonicalize(&self.base).ok();
+        while let Some(d) = dir {
+            let m = d.join("aak_modules");
+            for candidate in [m.join(path), m.join(stem).join("main.aak"), m.join(stem).join(path)] {
+                if let Ok(s) = std::fs::read_to_string(&candidate) {
+                    return Some(s);
+                }
+            }
+            dir = d.parent().map(PathBuf::from);
+        }
+        None
     }
 }
 

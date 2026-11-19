@@ -1,6 +1,7 @@
 42
-Galti: 'x' (number) function nahi hai, isliye call nahi kar sakte.
+Galti [E009]: 'x' (number) function nahi hai, isliye call nahi kar sakte.
   --> err_not_callable.aak:4:9
    |
  4 | dikhao(x(1));
    |         ^
+  Aur jaankari: adarsh samjhao E009

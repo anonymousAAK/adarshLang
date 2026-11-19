@@ -34,6 +34,9 @@ FRAGMENTS = [
     'baaki', 'khali', 'yeh', 'aur', 'ya', 'nahin', 'in', '=', '+=', '==', 'dikhao(', 'push(', 'pop(',
     'hatao(', 'range(', 'slice(', 'sort(', 'map(', 'reduce(', 'padho(', 'sankhya(', '\n', ' ', 'é',
     '\U0001F600', '\t', '#',
+    '..', '...', '?.', '??', '//', '=>', 'pakka', 'karo', 'hai', 'vikalp', 'dete_raho', 'aakhir', 'as',
+    'r"', '"""', '#[', ']#', 'case [a, ...b]:', 'case 1..5:', ' agar ', 'x => x', '(a, b) => a', 'Rang.Laal',
+    'set([1])', '(1,)', 'kachhua.aage(5);', 'json_padho(', 'tareekh(', 'format(', '{x:.2}', 'बदलो', 'दिखाओ(',
 ]
 
 

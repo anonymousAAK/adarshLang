@@ -1,0 +1,99 @@
+# Batch A: syntax conveniences
+## ranges and index+value loops
+ke_liye (badlo i in 1..5) { dikhao(i); }
+dikhao(5..1);
+badlo phal = ["aam", "kela", "seb"];
+ke_liye (badlo i, p in phal) { dikhao("{i}: {p}"); }
+ke_liye (badlo k, v in {"a": 1, "b": 2}) { dikhao("{k}={v}"); }
+
+## constants
+pakka GURUTVA = 9.8;
+dikhao(GURUTVA * 2);
+dikhao(PI > 3.14 aur PI < 3.15);
+
+## inline if
+badlo umar = 20;
+badlo s = agar (umar >= 18) "adult" warna "bachcha";
+dikhao(s);
+
+## dot-call builtins
+badlo naam = "adarsh keshri";
+dikhao(naam.upper());
+dikhao(naam.title());
+dikhao(phal.length());
+dikhao([3, 1, 2].sort());
+dikhao(phal.join(", "));
+dikhao([1, 2, 3, 4].map(x => x * x));
+dikhao([1, 2, 3, 4].filter((x) => x % 2 == 0).sum());
+
+## slices
+badlo xs = [0, 1, 2, 3, 4, 5];
+dikhao(xs[1:3]);
+dikhao(xs[:2]);
+dikhao(xs[3:]);
+dikhao(xs[::-1]);
+dikhao(xs[::2]);
+dikhao("namaste"[0:4]);
+dikhao(xs[-2:]);
+
+## in, chains, ?. ??, //
+dikhao("kela" in phal);
+dikhao("x" in "xyz");
+dikhao(3 in {"a": 1});
+badlo n = 5;
+dikhao(0 < n < 10);
+dikhao(0 < n < 3);
+badlo user = khali;
+dikhao(user?.naam);
+dikhao(user?.naam ?? "anjaan");
+dikhao(0 ?? 7);
+dikhao(7 // 2);
+dikhao(-7 // 2);
+dikhao(7.5 // 2);
+
+## do-while
+badlo c = 0;
+karo { c += 1; } jabtak (c < 3);
+dikhao(c);
+karo { dikhao("ek baar to chalega"); } jabtak (jhuth);
+
+## labelled break / continue
+bahar: ginnati (badlo i = 0; i < 3; i += 1) {
+    ke_liye (badlo j in 0..2) {
+        agar (j == 1) { aage_badho bahar; }
+        agar (i == 2) { bas bahar; }
+        dikhao("{i},{j}");
+    }
+}
+
+## multiple declarations and destructuring
+badlo a = 1, b = 2, cc = 3;
+dikhao(a + b + cc);
+badlo [p, q, ...baaki_items] = [10, 20, 30, 40];
+dikhao(p); dikhao(q); dikhao(baaki_items);
+badlo [_, doosra] = ("pehla", "doosra");
+dikhao(doosra);
+badlo { lambai, chaudai } = {"lambai": 4, "chaudai": 5};
+dikhao(lambai * chaudai);
+
+## multi-line strings and block comments
+badlo kavita = """
+Ek do teen,
+"quote" bhi chalega
+""";
+dikhao(kavita);
+#[ yeh poora
+   block comment hai ]#
+dikhao("comment ke baad");
+
+## lambdas, spread, named args
+badlo jodo = (x, y) => x + y;
+dikhao(jodo(2, 3));
+badlo nums = [1, 2];
+dikhao(jodo(...nums));
+dikhao([0, ...nums, 3]);
+kaam parichay(naam, umar = 0, shahar = "Indore") { wapas "{naam} ({umar}) {shahar}"; }
+dikhao(parichay("Adarsh", shahar: "Delhi"));
+dikhao(parichay(umar: 30, naam: "Priya"));
+dikhao(sort(["bb", "a", "ccc"], by: x => length(x)));
+dikhao(sort([1, 3, 2], ulta: sahi_hai_be));

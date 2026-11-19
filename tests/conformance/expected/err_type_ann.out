@@ -1,0 +1,6 @@
+Galti [E006]: 'umar' number hona chahiye tha, par string mila.
+  --> err_type_ann.aak:1:7
+   |
+ 1 | badlo umar: number = "pachchees";
+   |       ^
+  Aur jaankari: adarsh samjhao E006

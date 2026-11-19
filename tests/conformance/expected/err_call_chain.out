@@ -1,0 +1,9 @@
+Galti: Zero se divide nahi kar sakte.
+  --> err_call_chain.aak:3:21
+   |
+ 3 | kaam c(n) { wapas n / 0; }
+   |                     ^
+  Kaise pahunche (call chain):
+    'c' ko call kiya: err_call_chain.aak:2:19
+    'b' ko call kiya: err_call_chain.aak:1:19
+    'a' ko call kiya: err_call_chain.aak:4:8

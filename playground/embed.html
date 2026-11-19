@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AdarshLang Embed</title>
+<script>
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem('aak-theme'); } catch (e) {}
+    if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" crossorigin="anonymous">
+<style>
+  :root { --bg: #f6f4ef; --surface: #ffffff; --surface-2: #efece5; --ink: #14161a; --ink-2: #4a4f57; --ink-3: #656a73;
+    --rule: #dcd8cf; --accent: #0f6b4f; --err: #b3261e; --radius: 2px;
+    --t-k: #0f6b4f; --t-s: #9a5b00; --t-n: #3456c8; --t-c: #7c818a; --t-f: #7a3fb0; --t-b: #c23a48; --t-t: #1f7a8c;
+    --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace; --font-body: "Inter", system-ui, sans-serif; }
+  html[data-theme="dark"] { --bg: #0e1013; --surface: #15181d; --surface-2: #1b1f25; --ink: #e9e6df; --ink-2: #a9adb4; --ink-3: #8a8f97;
+    --rule: #2a2e35; --accent: #3ddc97; --err: #ff6b6b;
+    --t-k: #3ddc97; --t-s: #f2b33d; --t-n: #7aa2ff; --t-c: #7f858f; --t-f: #c792ea; --t-b: #ff6b7a; --t-t: #5cc8d8; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--surface); color: var(--ink); font-family: var(--font-body); }
+  body { display: flex; flex-direction: column; }
+  .bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--rule); background: var(--bg); }
+  .brand { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); text-transform: uppercase; letter-spacing: .06em; }
+  .brand b { color: var(--accent); }
+  .spacer { flex: 1; }
+  button, .open { font: 600 13px var(--font-body); padding: 7px 14px; border-radius: var(--radius); cursor: pointer; text-decoration: none; }
+  #run { background: var(--ink); color: var(--bg); border: 0; }
+  .open { color: var(--accent); border: 1px solid var(--rule); background: none; font-weight: 500; }
+  .code { position: relative; flex: 1 1 60%; min-height: 120px; }
+  .code pre, .code textarea { position: absolute; inset: 0; margin: 0; padding: 12px 14px; font: 13.5px/1.6 var(--font-mono);
+    white-space: pre; overflow: auto; border: 0; tab-size: 4; font-variant-ligatures: none; }
+  .code pre { pointer-events: none; color: var(--ink); overflow: hidden; }
+  .code textarea { color: transparent; background: transparent; caret-color: var(--ink); resize: none; outline: none; }
+  #out { flex: 1 1 40%; margin: 0; padding: 10px 14px; border-top: 1px solid var(--rule); background: var(--bg);
+    font: 13px/1.6 var(--font-mono); white-space: pre-wrap; overflow: auto; min-height: 60px; }
+  #out.err { color: var(--err); }
+  canvas { display: none; width: 100%; height: 200px; border-top: 1px solid var(--rule); background: var(--bg); }
+  .t-k { color: var(--t-k); font-weight: 500; } .t-s, .t-i { color: var(--t-s); } .t-n { color: var(--t-n); }
+  .t-c, .t-doc { color: var(--t-c); font-style: italic; } .t-f { color: var(--t-f); } .t-b { color: var(--t-b); } .t-t { color: var(--t-t); }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <span class="brand"><b>●</b> AdarshLang</span>
+    <span class="spacer"></span>
+    <a class="open" id="open" href="./" target="_blank" rel="noopener">Playground mein kholo</a>
+    <button id="run" type="button">Run ▶</button>
+  </div>
+  <div class="code"><pre id="hl" aria-hidden="true"></pre><textarea id="code" spellcheck="false" aria-label="AdarshLang code"></textarea></div>
+  <pre id="out">Run dabao…</pre>
+  <canvas id="turtle"></canvas>
+<script src="builtins.js"></script>
+<script src="app-core.js"></script>
+<script>
+  Adarsh.setBuiltins(ADARSH_BUILTINS.map(function (b) { return b[0]; }));
+  var runner = new Adarsh.Runner();
+  var code = document.getElementById('code'), hl = document.getElementById('hl'), out = document.getElementById('out');
+  var files = [{ name: 'main.aak', code: 'dikhao("Namaste, duniya!");\n' }];
+  function refresh() { hl.innerHTML = Adarsh.highlight(code.value) + '\n'; hl.scrollTop = code.scrollTop; hl.scrollLeft = code.scrollLeft; }
+  code.addEventListener('input', function () { files[0].code = code.value; refresh(); });
+  code.addEventListener('scroll', refresh);
+  code.addEventListener('keydown', function (e) {
+    if (e.key === 'Tab') { e.preventDefault(); var s = code.selectionStart; code.value = code.value.slice(0, s) + '    ' + code.value.slice(code.selectionEnd); code.selectionStart = code.selectionEnd = s + 4; refresh(); }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); run(); }
+  });
+  async function run() {
+    files[0].code = code.value;
+    out.className = ''; out.textContent = '';
+    var canvas = document.getElementById('turtle'); canvas.style.display = 'none';
+    try {
+      var d = await runner.run({ code: files[0].code, files: files.slice(1), onChunk: function (t) { out.textContent += t; } });
+      if (d.error) { out.className = 'err'; out.innerHTML = Adarsh.ansiToHtml(d.output ? d.output + '\n' : '') + Adarsh.esc(d.error); }
+      else out.innerHTML = d.output ? Adarsh.ansiToHtml(d.output) : '(no output)';
+      if (d.turtle && d.turtle.length) { canvas.style.display = 'block'; Adarsh.drawTurtle(canvas, d.turtle); }
+    } catch (e) { out.className = 'err'; out.textContent = e.message; }
+  }
+  document.getElementById('run').onclick = run;
+  (async function () {
+    var m = /#code=([\w-]+)/.exec(location.hash);
+    if (m) { try { files = await Adarsh.decodeFiles(m[1]); } catch (e) { out.textContent = 'Link kharab hai.'; } }
+    code.value = files[0].code; refresh();
+    document.getElementById('open').href = './' + (m ? '#code=' + m[1] : '');
+    runner.start();
+  })();
+</script>
+</body>
+</html>

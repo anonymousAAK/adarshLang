@@ -1,0 +1,7 @@
+## Tight loop at the top level (not inside a function, so it runs on the tree-walker)
+badlo kul = 0;
+ke_liye (badlo i in 0..2999999) {
+    badlo x = i % 7;
+    agar (x == 3) { kul = kul + i; } warna { kul = kul - 1; }
+}
+dikhao(kul);

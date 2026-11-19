@@ -1,0 +1,6 @@
+Soch [E001]: 'dikhoa' naam ka variable nahi mila. Kya aapka matlab 'dikhao' tha?
+  --> err_typo.aak:2:1
+   |
+ 2 | dikhoa(umar);
+   | ^
+  Aur jaankari: adarsh samjhao E001

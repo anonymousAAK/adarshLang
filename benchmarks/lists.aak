@@ -1,0 +1,12 @@
+## Lists, dicts and strings
+kaam chalao(n) {
+    badlo xs = [];
+    ke_liye (badlo i in 0..n - 1) { xs.push(i * 3 % 1000); }
+    badlo ginti = {};
+    ke_liye (badlo x in xs) {
+        badlo k = "k{x % 50}";
+        agar (k in ginti) { ginti[k] = ginti[k] + 1; } warna { ginti[k] = 1; }
+    }
+    wapas [length(ginti), xs.sum(), xs.sort()[1000]];
+}
+dikhao(chalao(200000));

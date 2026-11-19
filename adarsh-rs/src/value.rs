@@ -46,6 +46,27 @@ pub enum Value {
     Func(Rc<Closure>),
     Method(Rc<BoundMethod>),
     Builtin(usize),
+    /// Fixed-size, unchangeable sequence: `(1, 2)`.
+    Tuple(Rc<Vec<Value>>),
+    /// Unique values in insertion order (stored as dict keys).
+    Set(Rc<RefCell<Dict>>),
+    /// One variant of a `vikalp`: `Rang.Laal`.
+    Enum(Rc<EnumValue>),
+    /// The `vikalp` itself; `.Variant` gives a value.
+    EnumType(Rc<EnumType>),
+}
+
+#[derive(Debug)]
+pub struct EnumValue {
+    pub type_name: Rc<str>,
+    pub name: Rc<str>,
+    pub index: usize,
+}
+
+#[derive(Debug)]
+pub struct EnumType {
+    pub name: Rc<str>,
+    pub variants: Vec<Rc<EnumValue>>,
 }
 
 impl Value {
@@ -81,11 +102,17 @@ impl Value {
                 }
             }
             Value::Func(_) | Value::Method(_) | Value::Builtin(_) => "kaam",
+            Value::Tuple(_) => "tuple",
+            Value::Set(_) => "set",
+            Value::Enum(_) | Value::EnumType(_) => "vikalp",
         }
     }
 
     /// Type description for error messages, e.g. `string`, `dhacha Vyakti`.
     pub fn type_desc(&self) -> String {
+        if let Value::Enum(e) = self {
+            return format!("vikalp {}", e.type_name);
+        }
         if let Value::Dict(d) = self {
             if let Some(t) = &d.borrow().type_name {
                 return format!("dhacha {t}");
@@ -105,6 +132,9 @@ impl Value {
             Value::List(l) => !l.borrow().is_empty(),
             Value::Dict(d) => d.borrow().type_name.is_some() || !d.borrow().is_empty(),
             Value::Func(_) | Value::Method(_) | Value::Builtin(_) => true,
+            Value::Tuple(t) => !t.is_empty(),
+            Value::Set(s) => !s.borrow().is_empty(),
+            Value::Enum(_) | Value::EnumType(_) => true,
         }
     }
 
@@ -128,6 +158,8 @@ pub enum HKey {
     Float(u64),
     Str(Rc<str>),
     Ptr(usize),
+    Tuple(Vec<HKey>),
+    Enum(Rc<str>, usize),
 }
 
 pub fn hash_key(v: &Value) -> R<HKey> {
@@ -151,7 +183,10 @@ pub fn hash_key(v: &Value) -> R<HKey> {
         Value::Func(c) => HKey::Ptr(Rc::as_ptr(c) as *const u8 as usize),
         Value::Method(m) => HKey::Ptr(Rc::as_ptr(m) as *const u8 as usize),
         Value::Builtin(i) => HKey::Ptr(*i),
-        Value::List(_) | Value::Dict(_) => {
+        Value::Tuple(items) => HKey::Tuple(items.iter().map(hash_key).collect::<R<Vec<_>>>()?),
+        Value::Enum(e) => HKey::Enum(e.type_name.clone(), e.index),
+        Value::EnumType(t) => HKey::Ptr(Rc::as_ptr(t) as *const u8 as usize),
+        Value::List(_) | Value::Dict(_) | Value::Set(_) => {
             return Err(type_err(format!("{} ko dict ki key nahi bana sakte.", v.type_desc())))
         }
     })
@@ -289,7 +324,10 @@ fn quote(s: &str, out: &mut String) {
     out.push('"');
 }
 
-fn write_value(v: &Value, nested: bool, out: &mut String, seen: &mut Vec<usize>) {
+/// Custom text for a value (records with a `shabd()` method), supplied by the interpreter.
+pub type ShowHook<'a> = &'a mut dyn FnMut(&Value) -> Option<String>;
+
+fn write_value(v: &Value, nested: bool, out: &mut String, seen: &mut Vec<usize>, hook: ShowHook) {
     match v {
         Value::Null => out.push_str("khali"),
         Value::Bool(b) => out.push_str(if *b { "sahi_hai_be" } else { "jhuth" }),
@@ -319,7 +357,7 @@ fn write_value(v: &Value, nested: bool, out: &mut String, seen: &mut Vec<usize>)
                 if i > 0 {
                     out.push_str(", ");
                 }
-                write_value(item, true, out, seen);
+                write_value(item, true, out, seen, hook);
             }
             out.push(']');
             seen.pop();
@@ -329,6 +367,12 @@ fn write_value(v: &Value, nested: bool, out: &mut String, seen: &mut Vec<usize>)
             if seen.contains(&id) {
                 out.push_str("{...}");
                 return;
+            }
+            if d.borrow().type_name.is_some() {
+                if let Some(text) = hook(v) {
+                    out.push_str(&text);
+                    return;
+                }
             }
             seen.push(id);
             let d = d.borrow();
@@ -343,9 +387,9 @@ fn write_value(v: &Value, nested: bool, out: &mut String, seen: &mut Vec<usize>)
                             if i > 0 {
                                 out.push_str(", ");
                             }
-                            write_value(k, false, out, seen);
+                            write_value(k, false, out, seen, hook);
                             out.push_str(": ");
-                            write_value(val, true, out, seen);
+                            write_value(val, true, out, seen, hook);
                         }
                         out.push_str(" }");
                     }
@@ -356,9 +400,9 @@ fn write_value(v: &Value, nested: bool, out: &mut String, seen: &mut Vec<usize>)
                         if i > 0 {
                             out.push_str(", ");
                         }
-                        write_value(k, true, out, seen);
+                        write_value(k, true, out, seen, hook);
                         out.push_str(": ");
-                        write_value(val, true, out, seen);
+                        write_value(val, true, out, seen, hook);
                     }
                     out.push('}');
                 }
@@ -374,23 +418,60 @@ fn write_value(v: &Value, nested: bool, out: &mut String, seen: &mut Vec<usize>)
         Value::Builtin(i) => {
             let _ = write!(out, "<kaam {}>", crate::builtins::builtin_name(*i));
         }
+        Value::Tuple(items) => {
+            out.push('(');
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                write_value(item, true, out, seen, hook);
+            }
+            if items.len() == 1 {
+                out.push(',');
+            }
+            out.push(')');
+        }
+        Value::Set(set) => {
+            out.push_str("set([");
+            for (i, (k, _)) in set.borrow().entries().iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                write_value(k, true, out, seen, hook);
+            }
+            out.push_str("])");
+        }
+        Value::Enum(e) => {
+            let _ = write!(out, "{}.{}", e.type_name, e.name);
+        }
+        Value::EnumType(t) => {
+            let _ = write!(out, "<vikalp {}>", t.name);
+        }
     }
 }
 
 /// How `dikhao` and string interpolation show a value (strings unquoted).
 pub fn display(v: &Value) -> String {
+    display_with(v, &mut |_| None)
+}
+
+pub fn display_with(v: &Value, hook: ShowHook) -> String {
     if let Value::Str(s) = v {
         return s.to_string();
     }
     let mut out = String::new();
-    write_value(v, false, &mut out, &mut Vec::new());
+    write_value(v, false, &mut out, &mut Vec::new(), hook);
     out
 }
 
 /// Source-like form, used by the REPL and inside containers (strings quoted).
 pub fn repr(v: &Value) -> String {
+    repr_with(v, &mut |_| None)
+}
+
+pub fn repr_with(v: &Value, hook: ShowHook) -> String {
     let mut out = String::new();
-    write_value(v, true, &mut out, &mut Vec::new());
+    write_value(v, true, &mut out, &mut Vec::new(), hook);
     out
 }
 
@@ -622,6 +703,32 @@ pub fn arith(op: BinOp, a: &Value, b: &Value) -> R<Value> {
             }
             Ok(Value::Float(int_true_div(&x, &y)?))
         }
+        BinOp::IntDiv => {
+            let (x, y) = nums(a, b).ok_or_else(|| unsupported(op, a, b))?;
+            let zero = || AdarshError::runtime("Zero se divide nahi kar sakte.");
+            if is_float(&x) || is_float(&y) {
+                let d = to_f64(&y)?;
+                if d == 0.0 {
+                    return Err(zero());
+                }
+                return Ok(Value::Float((to_f64(&x)? / d).floor()));
+            }
+            if let (Num::I(p), Num::I(q)) = (&x, &y) {
+                if *q == 0 {
+                    return Err(zero());
+                }
+                if let Some(t) = p.checked_div(*q) {
+                    // round towards minus infinity, like Python's //
+                    let floor = if p % q != 0 && ((*p < 0) != (*q < 0)) { t - 1 } else { t };
+                    return Ok(Value::Int(floor));
+                }
+            }
+            let by = big(&y);
+            if by.is_zero() {
+                return Err(zero());
+            }
+            Ok(Value::from_big(big(&x).div_floor(&by)))
+        }
         BinOp::Mod => {
             let (x, y) = nums(a, b).ok_or_else(|| unsupported(op, a, b))?;
             let zero = || AdarshError::runtime("Zero se modulo (%) nahi kar sakte.");
@@ -789,6 +896,15 @@ pub fn values_eq(a: &Value, b: &Value) -> bool {
         (Value::Func(x), Value::Func(y)) => Rc::ptr_eq(x, y),
         (Value::Method(x), Value::Method(y)) => Rc::ptr_eq(&x.func, &y.func) && values_eq(&x.receiver, &y.receiver),
         (Value::Builtin(x), Value::Builtin(y)) => x == y,
+        (Value::Tuple(x), Value::Tuple(y)) => {
+            x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| values_eq(p, q))
+        }
+        (Value::Set(x), Value::Set(y)) => {
+            let (x, y) = (x.borrow(), y.borrow());
+            x.len() == y.len() && x.entries().iter().all(|(k, _)| y.contains(k).unwrap_or(false))
+        }
+        (Value::Enum(x), Value::Enum(y)) => x.type_name == y.type_name && x.index == y.index,
+        (Value::EnumType(x), Value::EnumType(y)) => Rc::ptr_eq(x, y),
         _ => false,
     }
 }
@@ -812,6 +928,15 @@ pub fn compare(op: BinOp, a: &Value, b: &Value) -> R<bool> {
     }
     match (a, b) {
         (Value::Str(x), Value::Str(y)) => Ok(test(Some(x.cmp(y)))),
+        (Value::Tuple(x), Value::Tuple(y)) => {
+            for (p, q) in x.iter().zip(y.iter()) {
+                if !values_eq(p, q) {
+                    return compare(op, p, q);
+                }
+            }
+            Ok(test(Some(x.len().cmp(&y.len()))))
+        }
+        (Value::Enum(x), Value::Enum(y)) if x.type_name == y.type_name => Ok(test(Some(x.index.cmp(&y.index)))),
         (Value::List(x), Value::List(y)) => {
             let (xs, ys) = (x.borrow().clone(), y.borrow().clone());
             for (p, q) in xs.iter().zip(ys.iter()) {

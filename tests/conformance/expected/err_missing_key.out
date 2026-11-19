@@ -1,6 +1,7 @@
 Adarsh
-Galti: Key "umar" dict mein nahi hai.
+Galti [E008]: Key "umar" dict mein nahi hai.
   --> err_missing_key.aak:4:9
    |
  4 | dikhao(d["umar"]);
    |         ^
+  Aur jaankari: adarsh samjhao E008

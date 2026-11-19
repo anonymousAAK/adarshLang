@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adarsh-kernel"
+version = "0.3.0"
+description = "Jupyter kernel for AdarshLang, the Hinglish programming language"
+requires-python = ">=3.8"
+dependencies = ["ipykernel>=6", "jupyter_client>=7"]
+
+[tool.setuptools]
+packages = ["adarsh_kernel"]

@@ -1,5 +1,6 @@
-Soch: 'jodo' ko 3 arguments diye, par yeh 2 arguments leta hai.
+Soch [E002]: 'jodo' ko 3 arguments diye, par yeh 2 arguments leta hai.
   --> err_arg_count.aak:7:12
    |
  7 | dikhao(jodo(1, 2, 3));
    |            ^
+  Aur jaankari: adarsh samjhao E002

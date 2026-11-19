@@ -2,6 +2,8 @@
 //! rendered error against `expected/NAME.out`. A `NAME.in` file, if present,
 //! supplies lines for `padho()`.
 //!
+//! Each program runs twice, with and without the bytecode VM, and both runs must match.
+//!
 //! After an intended behaviour change, regenerate the golden files with
 //! `BLESS=1 cargo test --release` and review the diff.
 
@@ -9,7 +11,8 @@ use adarshlang::FsLoader;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-fn run_program(path: &Path) -> String {
+fn run_program(path: &Path, vm: bool) -> String {
+    adarshlang::vm::set_enabled_on_this_thread(vm);
     let src = std::fs::read_to_string(path).unwrap();
     let input = std::fs::read_to_string(path.with_extension("in"))
         .map(|s| s.lines().map(String::from).collect())
@@ -36,10 +39,22 @@ fn conformance_suite() {
         count += 1;
         let name = path.file_stem().unwrap().to_string_lossy().to_string();
         let expected_path = dir.join("expected").join(format!("{name}.out"));
-        let p = path.clone();
         // big stack: deep AdarshLang recursion recurses natively
-        let actual =
-            std::thread::Builder::new().stack_size(512 << 20).spawn(move || run_program(&p)).unwrap().join().unwrap();
+        let run = |vm: bool| {
+            let p = path.clone();
+            std::thread::Builder::new()
+                .stack_size(512 << 20)
+                .spawn(move || run_program(&p, vm))
+                .unwrap()
+                .join()
+                .unwrap()
+        };
+        let actual = run(true);
+        // the tree-walker alone must give exactly the same output as with the bytecode VM
+        let walker = run(false);
+        if walker != actual {
+            failures.push(format!("── {name}: VM and tree-walker differ\n--- VM\n{actual}--- tree-walker\n{walker}"));
+        }
         if bless {
             std::fs::write(&expected_path, &actual).unwrap();
             continue;

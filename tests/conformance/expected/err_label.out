@@ -1,0 +1,5 @@
+Soch: 'bahar' naam ka koi loop yahan nahi hai, isliye 'bas bahar;' nahi chal sakta.
+  --> err_label.aak:2:5
+   |
+ 2 |     bas bahar;
+   |     ^

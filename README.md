@@ -92,9 +92,11 @@ bada order
 | --- | --- |
 | `adarsh-rs/` | The interpreter (Rust): lexer → parser → semantic checks → interpreter, plus the CLI and REPL |
 | `playground/` | Static web playground; the interpreter runs as WebAssembly in a Web Worker |
-| `tests/conformance/` | Test programs with expected outputs (`cargo test` runs them) |
+| `tests/conformance/` | Test programs with expected outputs (`cargo test` runs them, with and without the bytecode VM) |
+| `benchmarks/` | Timing programs (`benchmarks/run.sh`) |
 | `examples/` | Sample programs |
-| `editors/vscode/` | VS Code extension: syntax highlighting and snippets for `.aak` |
+| `editors/vscode/` | VS Code extension: highlighting, snippets, and errors, hover and completion from `adarsh lsp` |
+| `editors/jupyter/` | Jupyter kernel |
 | `legacy/python/` | The original Python implementation (frozen, for reference) |
 
 ## Development

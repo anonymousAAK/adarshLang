@@ -34,6 +34,12 @@
 - `jaancho` plus `adarsh test` (runs `test_*` functions in `*_test.aak` files).
 - `adarsh python file.aak` shows the same program in Python.
 
+### Performance
+- Simple functions run on a new bytecode VM; everything else on a faster tree-walker (cached variable slots, vector scopes, interned names, integer fast paths).
+- Compared with the interpreter just before this work, on the programs in `benchmarks/`: recursive calls 3.8x faster, a tight loop 3.6x, a sieve 2x, list and dict work 1.25x, top-level loops 1.6x.
+- `ADARSH_NO_VM=1` turns the VM off; the test suite checks both engines give identical results.
+- "Did you mean" suggestions no longer change from run to run.
+
 ### Tooling
 - `adarsh fmt` formatter, `adarsh docs` (Markdown from `##` comments), `adarsh debug` step-through debugger, `adarsh web` single-file HTML export.
 - Packages: `adarsh add` / `remove` / `install` with an `adarsh.json` manifest; `lao "name"` finds packages in `aak_modules/`.

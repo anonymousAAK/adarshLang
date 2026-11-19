@@ -134,7 +134,8 @@ pub enum ExprKind {
     Interp(Vec<Part>),
     Bool(bool),
     Null,
-    Var(Rc<str>),
+    /// a variable use; the slot caches where it was last found
+    Var(Rc<str>, Slot),
     List(Vec<Expr>),
     Tuple(Vec<Expr>),
     Dict(Vec<(Expr, Expr)>),
@@ -163,8 +164,8 @@ pub enum ExprKind {
     /// `obj?.field`: khali when obj is khali
     SafeAttr(Box<Expr>, Rc<str>),
     Func(Rc<FuncDef>),
-    Assign(Rc<str>, Box<Expr>),
-    CompoundAssign(Rc<str>, BinOp, Box<Expr>),
+    Assign(Rc<str>, Box<Expr>, Slot),
+    CompoundAssign(Rc<str>, BinOp, Box<Expr>, Slot),
     IndexAssign(Box<Expr>, Box<Expr>, Box<Expr>),
     IndexCompoundAssign(Box<Expr>, Box<Expr>, BinOp, Box<Expr>),
     AttrAssign(Box<Expr>, Rc<str>, Box<Expr>),
@@ -302,4 +303,44 @@ pub enum NodeKind {
     DhachaDef(Rc<DhachaDef>),
     /// `vikalp Rang { Laal, Hara };`
     EnumDef(Rc<str>, Rc<Vec<Rc<str>>>),
+}
+
+/// Where a variable was found the last time this node ran: how many scopes up, and the
+/// position inside that scope. Only a hint: the interpreter checks it on every use.
+#[derive(Debug, Default)]
+pub struct Slot(std::cell::Cell<(u32, u32)>);
+
+impl Slot {
+    pub const EMPTY: (u32, u32) = (u32::MAX, 0);
+
+    pub fn new() -> Self {
+        Slot(std::cell::Cell::new(Self::EMPTY))
+    }
+
+    #[inline]
+    pub fn get(&self) -> (u32, u32) {
+        self.0.get()
+    }
+
+    #[inline]
+    pub fn set(&self, hops: u32, index: u32) {
+        self.0.set((hops, index));
+    }
+}
+
+thread_local! {
+    static NAMES: std::cell::RefCell<std::collections::HashSet<Rc<str>>> = Default::default();
+}
+
+/// One shared `Rc<str>` per distinct name, so scopes can compare names by pointer.
+pub fn intern(s: &str) -> Rc<str> {
+    NAMES.with(|names| {
+        let mut names = names.borrow_mut();
+        if let Some(n) = names.get(s) {
+            return n.clone();
+        }
+        let n: Rc<str> = Rc::from(s);
+        names.insert(n.clone());
+        n
+    })
 }

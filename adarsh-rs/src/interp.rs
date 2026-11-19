@@ -33,9 +33,100 @@ pub type FxMap<K, V> = HashMap<K, V, BuildHasherDefault<FxHasher>>;
 
 // ------------------------------------------------------------ scopes
 
+/// Variables of one scope. Small scopes (blocks, calls) are a plain vector: names are
+/// interned by the parser, so a match is usually one pointer compare. Big scopes (the global
+/// one holds every builtin) also get a hash index.
+#[derive(Default)]
+pub struct Vars {
+    items: Vec<(Rc<str>, Value)>,
+    index: Option<Box<FxMap<Rc<str>, u32>>>,
+}
+
+const INDEX_AT: usize = 12;
+
+#[inline]
+fn same_name(a: &str, b: &str) -> bool {
+    a.len() == b.len() && (a.as_ptr() == b.as_ptr() || a.as_bytes() == b.as_bytes())
+}
+
+impl Vars {
+    #[inline]
+    pub fn position(&self, name: &str) -> Option<usize> {
+        if let Some(ix) = &self.index {
+            return ix.get(name).map(|&i| i as usize);
+        }
+        self.items.iter().position(|(n, _)| same_name(n, name))
+    }
+
+    /// Is this exact (interned) name defined here? Pointer compare only.
+    #[inline]
+    fn has_interned(&self, name: &str) -> bool {
+        if let Some(ix) = &self.index {
+            return ix.contains_key(name);
+        }
+        self.items.iter().any(|(n, _)| n.as_ptr() == name.as_ptr())
+    }
+
+    #[inline]
+    fn name_at(&self, i: usize) -> Option<&str> {
+        self.items.get(i).map(|(n, _)| &**n)
+    }
+
+    #[inline]
+    pub fn get(&self, name: &str) -> Option<&Value> {
+        self.position(name).map(|i| &self.items[i].1)
+    }
+
+    #[inline]
+    pub fn get_mut(&mut self, name: &str) -> Option<&mut Value> {
+        self.position(name).map(|i| &mut self.items[i].1)
+    }
+
+    #[inline]
+    pub fn contains_key(&self, name: &str) -> bool {
+        self.position(name).is_some()
+    }
+
+    /// Define or overwrite; returns the slot.
+    pub fn insert(&mut self, name: Rc<str>, value: Value) -> usize {
+        if let Some(i) = self.position(&name) {
+            self.items[i].1 = value;
+            return i;
+        }
+        let i = self.items.len();
+        if let Some(ix) = &mut self.index {
+            ix.insert(name.clone(), i as u32);
+        } else if i + 1 >= INDEX_AT {
+            let mut ix: FxMap<Rc<str>, u32> = FxMap::default();
+            for (j, (n, _)) in self.items.iter().enumerate() {
+                ix.insert(n.clone(), j as u32);
+            }
+            ix.insert(name.clone(), i as u32);
+            self.index = Some(Box::new(ix));
+        }
+        if self.items.capacity() == 0 {
+            self.items.reserve_exact(4);
+        }
+        self.items.push((name, value));
+        i
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&Rc<str>, &Value)> {
+        self.items.iter().map(|(n, v)| (n, v))
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+}
+
 #[derive(Default)]
 pub struct Scope {
-    vars: FxMap<Rc<str>, Value>,
+    vars: Vars,
     /// `pakka` names and declared types live here only when used (rare)
     consts: Option<HashSet<Rc<str>>>,
     var_types: Option<Box<FxMap<Rc<str>, TypeAnn>>>,
@@ -70,17 +161,131 @@ fn define(scope: &ScopeRef, name: &Rc<str>, value: Value) {
 }
 
 fn get_var(scope: &ScopeRef, name: &str) -> Result<Value, AdarshError> {
-    if let Some(v) = scope.borrow().vars.get(name) {
+    // walk the chain by reference: no Rc clones per level
+    let s = scope.borrow();
+    if let Some(v) = s.vars.get(name) {
         return Ok(v.clone());
     }
-    let mut cur = scope.borrow().parent.clone();
-    while let Some(s) = cur {
-        if let Some(v) = s.borrow().vars.get(name) {
-            return Ok(v.clone());
-        }
-        cur = s.borrow().parent.clone();
+    match &s.parent {
+        Some(p) => get_var(p, name),
+        None => Err(undeclared(name)),
     }
-    Err(undeclared(name))
+}
+
+/// Does running `nodes` add names to its scope? Blocks that don't can run in the enclosing scope.
+fn declares(nodes: &[Node]) -> bool {
+    nodes.iter().any(|n| {
+        matches!(
+            n.kind,
+            NodeKind::Badlo { .. }
+                | NodeKind::Destructure { .. }
+                | NodeKind::Seq(_)
+                | NodeKind::KaamDef(_)
+                | NodeKind::DhachaDef(_)
+                | NodeKind::EnumDef(..)
+                | NodeKind::Import { .. }
+        )
+    })
+}
+
+/// A scope for running `nodes`: a fresh child only when the block declares something.
+fn block_scope(scope: &ScopeRef, nodes: &[Node]) -> ScopeRef {
+    if declares(nodes) {
+        new_scope(Some(scope))
+    } else {
+        scope.clone()
+    }
+}
+
+/// Find the scope and position holding `name`, using and refreshing the node's cached slot.
+///
+/// The cache says "`hops` scopes up, at position `index`". It is trusted only after checking
+/// that no nearer scope has gained the name and that the slot still holds it, so a stale
+/// hint costs one slow lookup, never a wrong answer.
+#[inline]
+fn resolve_slot<'a>(scope: &'a ScopeRef, name: &str, slot: &Slot) -> Option<(&'a RefCell<Scope>, usize)> {
+    let (hops, index) = slot.get();
+    if hops != u32::MAX {
+        // SAFETY: each scope keeps its parent alive and `parent` is never reassigned, so every
+        // scope on the chain lives at least as long as `scope`.
+        let mut cur: &'a RefCell<Scope> = scope;
+        let mut ok = true;
+        for _ in 0..hops {
+            let s = cur.borrow();
+            if s.vars.has_interned(name) {
+                ok = false;
+                break;
+            }
+            match &s.parent {
+                Some(p) => cur = unsafe { &*Rc::as_ptr(p) },
+                None => {
+                    ok = false;
+                    break;
+                }
+            }
+        }
+        if ok && cur.borrow().vars.name_at(index as usize).is_some_and(|n| same_name(n, name)) {
+            return Some((cur, index as usize));
+        }
+    }
+    let mut cur: &'a RefCell<Scope> = scope;
+    let mut hops = 0u32;
+    loop {
+        let s = cur.borrow();
+        if let Some(i) = s.vars.position(name) {
+            slot.set(hops, i as u32);
+            return Some((cur, i));
+        }
+        let p = s.parent.as_ref()?;
+        cur = unsafe { &*Rc::as_ptr(p) };
+        hops += 1;
+    }
+}
+
+#[inline]
+fn get_var_cached(scope: &ScopeRef, name: &str, slot: &Slot) -> Result<Value, AdarshError> {
+    match resolve_slot(scope, name, slot) {
+        Some((s, i)) => Ok(s.borrow().vars.items[i].1.clone()),
+        None => Err(undeclared(name)),
+    }
+}
+
+enum Assigned {
+    /// stored; the old value is returned so it is dropped after the scope borrows end
+    Done(Value),
+    /// the variable has a declared type that must be checked first
+    Typed(TypeAnn, Value),
+}
+
+fn assign_in(scope: &ScopeRef, name: &str, value: Value) -> Result<Assigned, AdarshError> {
+    let mut s = scope.borrow_mut();
+    if s.vars.contains_key(name) {
+        if s.consts.as_ref().is_some_and(|c| c.contains(name)) {
+            return Err(
+                rt(format!("'{name}' pakka (constant) hai, isliye uski value badal nahi sakte.")).with_code("E003")
+            );
+        }
+        if let Some(ty) = s.var_types.as_ref().and_then(|t| t.get(name).cloned()) {
+            return Ok(Assigned::Typed(ty, value));
+        }
+        let slot = s.vars.get_mut(name).expect("checked above");
+        return Ok(Assigned::Done(std::mem::replace(slot, value)));
+    }
+    match &s.parent {
+        Some(p) => assign_in(p, name, value),
+        None => Err(undeclared(name)),
+    }
+}
+
+fn assign_in_unchecked(scope: &ScopeRef, name: &str, value: Value) -> Option<Value> {
+    let mut s = scope.borrow_mut();
+    if let Some(slot) = s.vars.get_mut(name) {
+        return Some(std::mem::replace(slot, value));
+    }
+    match &s.parent {
+        Some(p) => assign_in_unchecked(p, name, value),
+        None => None,
+    }
 }
 
 fn try_get_var(scope: &ScopeRef, name: &str) -> Option<Value> {
@@ -155,10 +360,10 @@ impl Interpreter {
         {
             let mut g = global.borrow_mut();
             for (id, spec) in BUILTINS.iter().enumerate() {
-                g.vars.insert(Rc::from(spec.name), Value::Builtin(id));
+                g.vars.insert(crate::ast::intern(spec.name), Value::Builtin(id));
             }
             for (name, value) in crate::builtins::global_values() {
-                g.vars.insert(Rc::from(name), value);
+                g.vars.insert(crate::ast::intern(name), value);
             }
         }
         let seed = (system_clock() * 1e6) as u64 ^ 0x9E37_79B9_7F4A_7C15;
@@ -215,30 +420,36 @@ impl Interpreter {
     // ---------------------------------------------------------------- variables
 
     fn set_var(&mut self, scope: &ScopeRef, name: &str, value: Value) -> Result<(), AdarshError> {
-        let mut cur = scope.clone();
-        loop {
-            let next = {
-                let s = cur.borrow();
-                if s.vars.contains_key(name) {
-                    if s.consts.as_ref().is_some_and(|c| c.contains(name)) {
-                        return Err(rt(format!("'{name}' pakka (constant) hai, isliye uski value badal nahi sakte."))
-                            .with_code("E003"));
-                    }
-                    let ty = s.var_types.as_ref().and_then(|t| t.get(name).cloned());
-                    drop(s);
-                    if let Some(ty) = ty {
-                        self.check_value_type(&value, &ty, &format!("'{name}'"))?;
-                    }
-                    cur.borrow_mut().vars.insert(Rc::from(name), value);
-                    return Ok(());
+        match assign_in(scope, name, value)? {
+            Assigned::Done(old) => {
+                drop(old);
+                Ok(())
+            }
+            // typed variable: check, then store (rare, so the second walk is fine)
+            Assigned::Typed(ty, value) => {
+                self.check_value_type(&value, &ty, &format!("'{name}'"))?;
+                match assign_in_unchecked(scope, name, value) {
+                    Some(old) => drop(old),
+                    None => return Err(undeclared(name)),
                 }
-                s.parent.clone()
-            };
-            match next {
-                Some(p) => cur = p,
-                None => return Err(undeclared(name)),
+                Ok(())
             }
         }
+    }
+
+    /// Assignment through a cached slot; constants and typed variables take the checked path.
+    #[inline]
+    fn set_var_cached(&mut self, scope: &ScopeRef, name: &str, slot: &Slot, value: Value) -> Result<(), AdarshError> {
+        if let Some((s, i)) = resolve_slot(scope, name, slot) {
+            let mut b = s.borrow_mut();
+            if b.consts.is_none() && b.var_types.is_none() {
+                let old = std::mem::replace(&mut b.vars.items[i].1, value);
+                drop(b);
+                drop(old);
+                return Ok(());
+            }
+        }
+        self.set_var(scope, name, value)
     }
 
     fn declare_const(scope: &ScopeRef, name: &Rc<str>) {
@@ -370,7 +581,7 @@ impl Interpreter {
         body: &[Node],
         scope: &ScopeRef,
     ) -> Result<Option<Flow>, AdarshError> {
-        Ok(match self.exec_block(body, &new_scope(Some(scope)))? {
+        Ok(match self.exec_block(body, &block_scope(scope, body))? {
             Flow::Return(v) => Some(Flow::Return(v)),
             Flow::Break(None) => Some(Flow::Normal(Value::Null)),
             Flow::Break(Some(l)) if label.as_ref() == Some(&l) => Some(Flow::Normal(Value::Null)),
@@ -438,13 +649,13 @@ impl Interpreter {
                 }
                 Ok(Flow::Normal(Value::Null))
             }
-            NodeKind::Block(b) => self.exec_block(b, &new_scope(Some(scope))),
+            NodeKind::Block(b) => self.exec_block(b, &block_scope(scope, b)),
             NodeKind::If { cond, then, otherwise } => {
                 if self.eval(cond, scope)?.truthy() {
-                    self.exec_block(then, &new_scope(Some(scope)))
+                    self.exec_block(then, &block_scope(scope, then))
                 } else if let Some(o) = otherwise {
                     match &o.kind {
-                        NodeKind::Block(b) => self.exec_block(b, &new_scope(Some(scope))),
+                        NodeKind::Block(b) => self.exec_block(b, &block_scope(scope, b)),
                         _ => self.exec(o, scope),
                     }
                 } else {
@@ -659,7 +870,7 @@ impl Interpreter {
                 true
             }
             Pattern::Value(e) => {
-                if let ExprKind::Var(n) = &e.kind {
+                if let ExprKind::Var(n, _) = &e.kind {
                     let is_type = BUILTIN_TYPES.contains(&&**n) || self.types.contains_key(n);
                     if is_type && try_get_var(scope, n).is_none() {
                         return Ok(self.value_is(v, n));
@@ -818,7 +1029,7 @@ impl Interpreter {
             ExprKind::Interp(parts) => self.eval_interp(parts, scope),
             ExprKind::Bool(b) => Ok(Value::Bool(*b)),
             ExprKind::Null => Ok(Value::Null),
-            ExprKind::Var(name) => get_var(scope, name),
+            ExprKind::Var(name, slot) => get_var_cached(scope, name, slot),
             ExprKind::List(items) => Ok(Value::list(self.eval_items(items, scope)?)),
             ExprKind::Tuple(items) => Ok(Value::Tuple(Rc::new(self.eval_items(items, scope)?))),
             ExprKind::Dict(entries) => self.eval_dict(entries, scope),
@@ -856,16 +1067,16 @@ impl Interpreter {
             }
             ExprKind::Spread(_) => Err(rt("'...' sirf list ke andar ya function call ke arguments mein chalta hai.")),
             ExprKind::NamedArg(n, _) => Err(rt(format!("'{n}: ...' sirf function call ke andar chalta hai."))),
-            ExprKind::Assign(name, rhs) => {
+            ExprKind::Assign(name, rhs, slot) => {
                 let v = self.eval(rhs, scope)?;
-                self.set_var(scope, name, v.clone())?;
+                self.set_var_cached(scope, name, slot, v.clone())?;
                 Ok(v)
             }
-            ExprKind::CompoundAssign(name, op, rhs) => {
-                let cur = get_var(scope, name)?;
+            ExprKind::CompoundAssign(name, op, rhs, slot) => {
+                let cur = get_var_cached(scope, name, slot)?;
                 let r = self.eval(rhs, scope)?;
                 let v = self.binary_values(&cur, *op, &r)?;
-                self.set_var(scope, name, v.clone())?;
+                self.set_var_cached(scope, name, slot, v.clone())?;
                 Ok(v)
             }
             ExprKind::Index(c, i) => {
@@ -1281,7 +1492,7 @@ impl Interpreter {
         };
         if !f.is_callable() {
             let what = match &callee.kind {
-                ExprKind::Var(n) => format!("'{n}' ({})", f.type_desc()),
+                ExprKind::Var(n, _) => format!("'{n}' ({})", f.type_desc()),
                 _ => f.type_desc(),
             };
             return Err(rt(format!("{what} function nahi hai, isliye call nahi kar sakte.")).with_code("E009"));
@@ -1396,7 +1607,7 @@ impl Interpreter {
         }
         let call_scope = new_scope(Some(&c.scope));
         if let Some(r) = receiver {
-            define(&call_scope, &Rc::from("yeh"), r);
+            define(&call_scope, &crate::ast::intern("yeh"), r);
         }
         for (p, slot) in def.params.iter().zip(slots) {
             let v = if p.is_varargs {

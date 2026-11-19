@@ -1,0 +1,23 @@
+# Scoping cases the cached variable slots must get right:
+# a name that appears in a nearer scope after a function first ran, shadowed builtins,
+# closures in loops, and typed variables assigned from inside functions.
+badlo x = "global";
+kaam outer() {
+    kaam inner() { wapas x; }
+    dikhao(inner());
+    badlo x = "outer";
+    dikhao(inner());
+}
+outer();
+outer();
+kaam lambai() { wapas length([1, 2]); }
+dikhao(lambai());
+badlo length = (xs) => 99;
+dikhao(lambai());
+badlo fs = [];
+ke_liye (badlo i in 1..3) { badlo j = i * 10; fs.push(() => j); }
+dikhao(fs.map(f => f()));
+badlo t: number = 1;
+kaam tb() { t = "a"; }
+pakdo { tb(); } chhoddo (e) { dikhao("type ok"); }
+dikhao(t);

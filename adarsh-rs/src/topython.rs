@@ -365,10 +365,12 @@ impl Py {
     fn pattern(&mut self, p: &Pattern) -> String {
         match p {
             Pattern::Value(e) => match &e.kind {
-                ExprKind::Var(n) if ["number", "string", "list", "dict", "boolean", "tuple", "set"].contains(&&**n) => {
+                ExprKind::Var(n, _)
+                    if ["number", "string", "list", "dict", "boolean", "tuple", "set"].contains(&&**n) =>
+                {
                     format!("{}()", py_annotation(n).trim_start_matches('(').split(',').next().unwrap_or("object"))
                 }
-                ExprKind::Var(n) if n.starts_with(|c: char| c.is_uppercase()) => format!("{n}()"),
+                ExprKind::Var(n, _) if n.starts_with(|c: char| c.is_uppercase()) => format!("{n}()"),
                 _ => self.expr(e),
             },
             Pattern::Range(lo, hi) => {
@@ -545,7 +547,7 @@ impl Py {
             }
             ExprKind::Bool(b) => if *b { "True" } else { "False" }.into(),
             ExprKind::Null => "None".into(),
-            ExprKind::Var(n) => match &**n {
+            ExprKind::Var(n, _) => match &**n {
                 "PI" => {
                     self.import("import math");
                     "math.pi".into()
@@ -644,8 +646,8 @@ impl Py {
                 self.pending.push(sub.out);
                 name
             }
-            ExprKind::Assign(n, v) => format!("{n} = {}", self.expr(v)),
-            ExprKind::CompoundAssign(n, op, v) => format!("{n} {}= {}", op.symbol(), self.expr(v)),
+            ExprKind::Assign(n, v, _) => format!("{n} = {}", self.expr(v)),
+            ExprKind::CompoundAssign(n, op, v, _) => format!("{n} {}= {}", op.symbol(), self.expr(v)),
             ExprKind::IndexAssign(c, i, v) => format!("{}[{}] = {}", self.expr(c), self.expr(i), self.expr(v)),
             ExprKind::IndexCompoundAssign(c, i, op, v) => {
                 format!("{}[{}] {}= {}", self.expr(c), self.expr(i), op.symbol(), self.expr(v))
@@ -657,7 +659,7 @@ impl Py {
             ExprKind::Call(callee, args) => {
                 // kachhua.aage(100) → kachhua.forward(100) with Python's turtle module
                 if let ExprKind::Attr(t, m) = &callee.kind {
-                    if matches!(&t.kind, ExprKind::Var(v) if &**v == "kachhua") {
+                    if matches!(&t.kind, ExprKind::Var(v, _) if &**v == "kachhua") {
                         self.import("import turtle as kachhua");
                         let py = match &**m {
                             "aage" => "forward",
@@ -679,7 +681,7 @@ impl Py {
                 // dot-call on a builtin: xs.length() → len(xs)
                 if let ExprKind::Attr(t, name) = &callee.kind {
                     if crate::builtins::builtin_spec(name).is_some()
-                        && !matches!(&t.kind, ExprKind::Var(v) if &**v == "kachhua")
+                        && !matches!(&t.kind, ExprKind::Var(v, _) if &**v == "kachhua")
                     {
                         let mut all = vec![self.expr(t)];
                         all.extend(self.args(args));
@@ -693,7 +695,7 @@ impl Py {
                     }
                 }
                 let a = self.args(args);
-                if let ExprKind::Var(name) = &callee.kind {
+                if let ExprKind::Var(name, _) = &callee.kind {
                     if let Some(s) = self.builtin_call(name, &a) {
                         return s;
                     }

@@ -464,7 +464,7 @@ impl Analyzer {
         match p {
             Pattern::Value(e) => {
                 // a bare type name (`case Vyakti:` / `case number:`) is a type pattern
-                if let ExprKind::Var(n) = &e.kind {
+                if let ExprKind::Var(n, _) = &e.kind {
                     let is_type = BUILTIN_TYPES.contains(&&**n) || find_type(scope, n).is_some();
                     if is_type && lookup(scope, &|sc| sc.vars.get(&**n).map(|_| ())).is_none() {
                         return Ok(());
@@ -697,12 +697,12 @@ impl Analyzer {
                 Part::Expr(x, _) => self.expr(x, scope),
                 Part::Lit(_) => Ok(()),
             }),
-            ExprKind::Var(name) => self.use_var(scope, name, pos),
-            ExprKind::Assign(name, rhs) => {
+            ExprKind::Var(name, _) => self.use_var(scope, name, pos),
+            ExprKind::Assign(name, rhs, _) => {
                 self.check_assignable(scope, name, pos)?;
                 self.expr(rhs, scope)
             }
-            ExprKind::CompoundAssign(name, _, rhs) => {
+            ExprKind::CompoundAssign(name, _, rhs, _) => {
                 self.check_assignable(scope, name, pos)?;
                 self.use_var(scope, name, pos)?;
                 self.expr(rhs, scope)
@@ -793,7 +793,7 @@ impl Analyzer {
                     self.expr(a, scope)?;
                 }
                 let simple = args.iter().all(|a| !matches!(a.kind, ExprKind::Spread(_) | ExprKind::NamedArg(..)));
-                if let (ExprKind::Var(name), true) = (&callee.kind, simple) {
+                if let (ExprKind::Var(name, _), true) = (&callee.kind, simple) {
                     let sig = lookup(scope, &|sc| {
                         // a plain variable of the same name in a nearer scope shadows the function
                         if sc.functions.contains_key(&**name) {

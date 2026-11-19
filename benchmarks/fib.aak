@@ -1,0 +1,6 @@
+## Recursive function calls
+kaam fib(n) {
+    agar (n < 2) { wapas n; }
+    wapas fib(n - 1) + fib(n - 2);
+}
+dikhao(fib(27));

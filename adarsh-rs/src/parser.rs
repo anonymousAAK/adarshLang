@@ -150,7 +150,7 @@ impl Parser {
     fn ident(&mut self) -> PResult<(Rc<str>, Pos)> {
         if self.ty() == Tok::Ident {
             let t = self.bump();
-            Ok((t.text().into(), t.pos))
+            Ok((crate::ast::intern(&t.text()), t.pos))
         } else {
             Err(self.expected("ek naam"))
         }
@@ -182,7 +182,7 @@ impl Parser {
     fn type_ann(&mut self) -> PResult<TypeAnn> {
         let pos = self.pos();
         let name: Rc<str> = match self.ty() {
-            Tok::Ident => self.bump().text().into(),
+            Tok::Ident => crate::ast::intern(&self.bump().text()),
             Tok::Khali => {
                 self.bump();
                 "khali".into()
@@ -525,7 +525,7 @@ impl Parser {
             self.bump();
             let rhs = Box::new(self.expression()?);
             let kind = match target.kind {
-                ExprKind::Var(n) => ExprKind::Assign(n, rhs),
+                ExprKind::Var(n, _) => ExprKind::Assign(n, rhs, Slot::new()),
                 ExprKind::Index(c, i) => ExprKind::IndexAssign(c, i, rhs),
                 ExprKind::Attr(t, a) => ExprKind::AttrAssign(t, a, rhs),
                 _ => {
@@ -541,7 +541,7 @@ impl Parser {
             self.bump();
             let rhs = Box::new(self.expression()?);
             let kind = match target.kind {
-                ExprKind::Var(n) => ExprKind::CompoundAssign(n, op, rhs),
+                ExprKind::Var(n, _) => ExprKind::CompoundAssign(n, op, rhs, Slot::new()),
                 ExprKind::Index(c, i) => ExprKind::IndexCompoundAssign(c, i, op, rhs),
                 ExprKind::Attr(t, a) => ExprKind::AttrCompoundAssign(t, a, op, rhs),
                 _ => {
@@ -756,11 +756,11 @@ impl Parser {
                 }
                 // `Naam { field: value }` record construction
                 Tok::LBrace
-                    if matches!(&e.kind, ExprKind::Var(_))
+                    if matches!(&e.kind, ExprKind::Var(..))
                         && (self.peek_ty(1) == Tok::RBrace
                             || (self.peek_ty(1) == Tok::Ident && self.peek_ty(2) == Tok::Colon)) =>
                 {
-                    let ExprKind::Var(type_name) = e.kind else { unreachable!() };
+                    let ExprKind::Var(type_name, _) = e.kind else { unreachable!() };
                     let pos = e.pos;
                     self.bump();
                     let mut fields = Vec::new();
@@ -871,7 +871,7 @@ impl Parser {
         }
         let tok = self.bump();
         let kind = match tok.ty {
-            Tok::Ident => ExprKind::Var(tok.text().into()),
+            Tok::Ident => ExprKind::Var(crate::ast::intern(&tok.text()), Slot::new()),
             Tok::Number => match tok.value {
                 TokValue::Int(i) => ExprKind::Int(i),
                 TokValue::BigInt(b) => ExprKind::BigInt(Rc::new(b)),
@@ -1043,7 +1043,7 @@ impl Parser {
             && matches!(self.peek_ty(1), Tok::Comma | Tok::RBracket | Tok::Colon | Tok::Agar)
             && (in_list || self.peek_ty(1) == Tok::Agar)
         {
-            return Ok(Pattern::Bind(self.bump().text().into()));
+            return Ok(Pattern::Bind(crate::ast::intern(&self.bump().text())));
         }
         let e = self.expression()?;
         Ok(match e.kind {

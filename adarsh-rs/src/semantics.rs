@@ -131,7 +131,8 @@ pub fn closest<'a>(name: &str, candidates: impl Iterator<Item = &'a str>) -> Opt
         .filter(|c| *c != name)
         .map(|c| (distance(&name.to_lowercase(), &c.to_lowercase()), c))
         .filter(|(d, _)| *d <= limit)
-        .min_by_key(|(d, c)| (*d, c.len()))
+        // ties go to the shorter, then alphabetically first name, so every run picks the same guess
+        .min_by_key(|(d, c)| (*d, c.len(), *c))
         .map(|(_, c)| c.to_string())
 }
 

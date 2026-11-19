@@ -243,7 +243,7 @@ fn resolve_slot<'a>(scope: &'a ScopeRef, name: &str, slot: &Slot) -> Option<(&'a
 }
 
 #[inline]
-fn get_var_cached(scope: &ScopeRef, name: &str, slot: &Slot) -> Result<Value, AdarshError> {
+pub(crate) fn get_var_cached(scope: &ScopeRef, name: &str, slot: &Slot) -> Result<Value, AdarshError> {
     match resolve_slot(scope, name, slot) {
         Some((s, i)) => Ok(s.borrow().vars.items[i].1.clone()),
         None => Err(undeclared(name)),
@@ -292,6 +292,25 @@ fn try_get_var(scope: &ScopeRef, name: &str) -> Option<Value> {
     get_var(scope, name).ok()
 }
 
+/// Common operators on two small integers, without the general dispatch. `None` means
+/// "take the general path" (overflow into big integers, division, negative `%`, ...).
+#[inline]
+pub(crate) fn int_fast(x: i64, op: BinOp, y: i64) -> Option<Value> {
+    Some(match op {
+        BinOp::Add => Value::Int(x.checked_add(y)?),
+        BinOp::Sub => Value::Int(x.checked_sub(y)?),
+        BinOp::Mul => Value::Int(x.checked_mul(y)?),
+        BinOp::Mod if x >= 0 && y > 0 => Value::Int(x % y),
+        BinOp::Lt => Value::Bool(x < y),
+        BinOp::Gt => Value::Bool(x > y),
+        BinOp::Lte => Value::Bool(x <= y),
+        BinOp::Gte => Value::Bool(x >= y),
+        BinOp::Eq => Value::Bool(x == y),
+        BinOp::Neq => Value::Bool(x != y),
+        _ => return None,
+    })
+}
+
 // ------------------------------------------------------------ control flow
 
 /// Result of executing a statement: a value, or a control-flow signal.
@@ -337,6 +356,10 @@ pub struct Interpreter {
     pub clock: fn() -> f64,
     /// Called before each statement (debugger / step-through trace).
     pub on_step: Option<StepHook>,
+    /// Run simple functions as bytecode (off with `ADARSH_NO_VM=1`).
+    pub use_vm: bool,
+    /// values of the running bytecode frames: each frame's locals, then its operands
+    pub(crate) vstack: Vec<Value>,
     /// Commands recorded by the `kachhua` (turtle) builtins.
     pub turtle: crate::builtins::Turtle,
     /// Host hooks (files, sleeping, internet) that differ between CLI and browser.
@@ -382,6 +405,8 @@ impl Interpreter {
             rng: seed | 1,
             clock: system_clock,
             on_step: None,
+            use_vm: crate::vm::enabled(),
+            vstack: Vec::with_capacity(256),
             turtle: crate::builtins::Turtle::default(),
             host: crate::builtins::default_host(),
         }
@@ -439,7 +464,13 @@ impl Interpreter {
 
     /// Assignment through a cached slot; constants and typed variables take the checked path.
     #[inline]
-    fn set_var_cached(&mut self, scope: &ScopeRef, name: &str, slot: &Slot, value: Value) -> Result<(), AdarshError> {
+    pub(crate) fn set_var_cached(
+        &mut self,
+        scope: &ScopeRef,
+        name: &str,
+        slot: &Slot,
+        value: Value,
+    ) -> Result<(), AdarshError> {
         if let Some((s, i)) = resolve_slot(scope, name, slot) {
             let mut b = s.borrow_mut();
             if b.consts.is_none() && b.var_types.is_none() {
@@ -1148,6 +1179,11 @@ impl Interpreter {
             _ => {}
         }
         let b = self.eval(r, scope)?;
+        if let (Value::Int(x), Value::Int(y)) = (&a, &b) {
+            if let Some(v) = int_fast(*x, op, *y) {
+                return Ok(v);
+            }
+        }
         self.binary_values(&a, op, &b)
     }
 
@@ -1402,7 +1438,7 @@ impl Interpreter {
         }
     }
 
-    fn index(&mut self, coll: &Value, idx: &Value) -> Eval {
+    pub(crate) fn index(&mut self, coll: &Value, idx: &Value) -> Eval {
         match coll {
             Value::Dict(d) => match d.borrow().get(idx)? {
                 Some(v) => Ok(v),
@@ -1435,7 +1471,7 @@ impl Interpreter {
         }
     }
 
-    fn store_index(&mut self, coll: &Value, idx: Value, val: Value) -> Result<(), AdarshError> {
+    pub(crate) fn store_index(&mut self, coll: &Value, idx: Value, val: Value) -> Result<(), AdarshError> {
         match coll {
             Value::Dict(d) => d.borrow_mut().insert(idx, val),
             Value::List(l) => {
@@ -1457,35 +1493,50 @@ impl Interpreter {
     // ---------------------------------------------------------------- calls
 
     #[inline(never)]
+    /// `target.name(...)`: a field or method of the target, else the builtin or function `name`
+    /// (found with `lookup`) with the target as its first argument ("dot-call").
+    /// `Ok(None)` is `?.` on khali.
+    pub(crate) fn dot_callee(
+        &mut self,
+        target: Value,
+        name: &Rc<str>,
+        safe: bool,
+        callee_pos: Pos,
+        lookup: &mut dyn FnMut() -> Option<Value>,
+    ) -> Result<Option<(Value, Option<Value>)>, AdarshError> {
+        if safe && matches!(target, Value::Null) {
+            return Ok(None);
+        }
+        let own = match &target {
+            Value::Dict(d) => {
+                let has_field = d.borrow().get_str(name).is_some();
+                let is_method = Self::record_type(&target).and_then(|t| self.find_method(&t, name)).is_some();
+                has_field || is_method
+            }
+            Value::EnumType(_) | Value::Enum(_) => true,
+            _ => false,
+        };
+        if own {
+            return Ok(Some((self.attr(&target, name).map_err(|e| e.at(callee_pos))?, None)));
+        }
+        match lookup() {
+            Some(func) if func.is_callable() => Ok(Some((func, Some(target)))),
+            _ => Err(self
+                .attr(&target, name)
+                .err()
+                .unwrap_or_else(|| rt(format!("'{name}' naam ka function nahi mila.")))),
+        }
+    }
+
     fn eval_call(&mut self, callee: &Expr, args: &[Expr], scope: &ScopeRef) -> Eval {
         // `x.f(...)`: field / method, else the builtin or function `f` with x first ("dot-call")
         let (f, receiver) = match &callee.kind {
             ExprKind::Attr(t, name) | ExprKind::SafeAttr(t, name) => {
                 let target = self.eval(t, scope)?;
-                if matches!(callee.kind, ExprKind::SafeAttr(..)) && matches!(target, Value::Null) {
-                    return Ok(Value::Null);
-                }
-                let own = match &target {
-                    Value::Dict(d) => {
-                        let has_field = d.borrow().get_str(name).is_some();
-                        let is_method = Self::record_type(&target).and_then(|t| self.find_method(&t, name)).is_some();
-                        has_field || is_method
-                    }
-                    Value::EnumType(_) | Value::Enum(_) => true,
-                    _ => false,
-                };
-                if own {
-                    (self.attr(&target, name).map_err(|e| e.at(callee.pos))?, None)
-                } else {
-                    match try_get_var(scope, name) {
-                        Some(func) if func.is_callable() => (func, Some(target)),
-                        _ => {
-                            return Err(self
-                                .attr(&target, name)
-                                .err()
-                                .unwrap_or_else(|| rt(format!("'{name}' naam ka function nahi mila."))));
-                        }
-                    }
+                let safe = matches!(callee.kind, ExprKind::SafeAttr(..));
+                match self.dot_callee(target, name, safe, callee.pos, &mut || try_get_var(scope, name))? {
+                    Some(fr) => fr,
+                    None => return Ok(Value::Null),
                 }
             }
             _ => (self.eval(callee, scope)?, None),
@@ -1525,15 +1576,17 @@ impl Interpreter {
                 _ => positional.push(self.eval(a, scope)?),
             }
         }
-        let name = match &f {
-            Value::Func(c) => Some(c.def.display_name()),
-            Value::Method(m) => Some(m.func.def.display_name()),
-            _ => None,
-        };
         match self.call_full(&f, positional, named) {
             // record which call the error passed through, for the "call chain" in the message
-            Err(mut e) if name.is_some() && e.catchable() && e.pos.is_some() && e.trace.len() < 64 => {
-                e.trace.push((name.unwrap(), callee.pos));
+            Err(mut e) if e.catchable() && e.pos.is_some() && e.trace.len() < 64 => {
+                let name = match &f {
+                    Value::Func(c) => Some(c.def.display_name()),
+                    Value::Method(m) => Some(m.func.def.display_name()),
+                    _ => None,
+                };
+                if let Some(name) = name {
+                    e.trace.push((name, callee.pos));
+                }
                 Err(e)
             }
             other => other,
@@ -1552,6 +1605,15 @@ impl Interpreter {
             Value::Method(m) => self.call_closure(m.func.clone(), Some(m.receiver.clone()), args, named),
             other => Err(rt(format!("{} function nahi hai, isliye call nahi kar sakte.", other.type_desc()))),
         }
+    }
+
+    pub(crate) fn too_deep(&self, def: &FuncDef) -> AdarshError {
+        rt(format!(
+            "Recursion bahut gehri ho gayi ({} calls). Shayad '{}' khud ko bina ruke call kar raha hai?",
+            self.max_depth,
+            def.display_name()
+        ))
+        .with_code("E010")
     }
 
     pub fn call_closure(
@@ -1598,17 +1660,9 @@ impl Interpreter {
             return Err(rt(sig.arity_error(&def.display_name(), given + extra + varargs.len())).with_code("E002"));
         }
         if self.depth >= self.max_depth {
-            return Err(rt(format!(
-                "Recursion bahut gehri ho gayi ({} calls). Shayad '{}' khud ko bina ruke call kar raha hai?",
-                self.max_depth,
-                def.display_name()
-            ))
-            .with_code("E010"));
+            return Err(self.too_deep(def));
         }
-        let call_scope = new_scope(Some(&c.scope));
-        if let Some(r) = receiver {
-            define(&call_scope, &crate::ast::intern("yeh"), r);
-        }
+        let mut values: Vec<Value> = Vec::with_capacity(def.params.len());
         for (p, slot) in def.params.iter().zip(slots) {
             let v = if p.is_varargs {
                 Value::list(std::mem::take(&mut varargs))
@@ -1621,6 +1675,26 @@ impl Interpreter {
             if let Some(t) = &p.ty {
                 self.check_value_type(&v, t, &format!("'{}' ka parameter '{}'", def.display_name(), p.name))?;
             }
+            values.push(v);
+        }
+        // simple functions run as bytecode; step-through needs real scopes, so it never does
+        if receiver.is_none() && self.use_vm && self.on_step.is_none() {
+            if let Some(code) = crate::vm::compiled(def) {
+                self.depth += 1;
+                let r = self.run_code(code, &c.scope, values);
+                self.depth -= 1;
+                let value = r?;
+                if let Some(t) = &def.ret {
+                    self.check_value_type(&value, t, &format!("'{}' ka result", def.display_name()))?;
+                }
+                return Ok(value);
+            }
+        }
+        let call_scope = new_scope(Some(&c.scope));
+        if let Some(r) = receiver {
+            define(&call_scope, &crate::ast::intern("yeh"), r);
+        }
+        for (p, v) in def.params.iter().zip(values) {
             define(&call_scope, &p.name, v);
         }
         if def.generator {

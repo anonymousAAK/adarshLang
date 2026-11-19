@@ -272,7 +272,17 @@ impl Parser {
         let ret = self.return_type()?;
         let (body, generator) = self.function_body()?;
         let doc = kw.doc.map(Rc::from);
-        let def = FuncDef { name: Some(name), method_of, params, ret, body, generator, doc, pos };
+        let def = FuncDef {
+            name: Some(name),
+            method_of,
+            params,
+            ret,
+            body,
+            generator,
+            doc,
+            pos,
+            compiled: Default::default(),
+        };
         Ok(node(NodeKind::KaamDef(Rc::new(def)), pos))
     }
 
@@ -815,7 +825,17 @@ impl Parser {
     fn lambda(&mut self, params: Vec<Param>, pos: Pos) -> PResult<ExprKind> {
         self.eat(Tok::Arrow)?;
         let (body, generator) = self.lambda_body(pos)?;
-        let def = FuncDef { name: None, method_of: None, params, ret: None, body, generator, doc: None, pos };
+        let def = FuncDef {
+            name: None,
+            method_of: None,
+            params,
+            ret: None,
+            body,
+            generator,
+            doc: None,
+            pos,
+            compiled: Default::default(),
+        };
         Ok(ExprKind::Func(Rc::new(def)))
     }
 
@@ -929,6 +949,7 @@ impl Parser {
                     generator,
                     doc: None,
                     pos,
+                    compiled: Default::default(),
                 }))
             }
             // `agar (c) a warna b` as a value

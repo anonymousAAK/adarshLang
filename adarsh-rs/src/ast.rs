@@ -100,6 +100,8 @@ pub struct FuncDef {
     /// `## doc comment` lines written just above the definition.
     pub doc: Option<Rc<str>>,
     pub pos: Pos,
+    /// Bytecode, compiled on the first call; `Some(None)` when the VM can't run this function.
+    pub compiled: std::cell::OnceCell<Option<Box<crate::vm::Code>>>,
 }
 
 impl FuncDef {

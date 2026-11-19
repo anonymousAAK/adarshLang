@@ -1,0 +1,152 @@
+# Functions simple enough to run as bytecode. The output must match the tree-walker
+# exactly (ADARSH_NO_VM=1), including error positions and call chains.
+
+kaam fib(n) {
+    agar (n < 2) { wapas n; }
+    wapas fib(n - 1) + fib(n - 2);
+}
+dikhao(fib(20));
+
+# loops, break and continue, ranges both ways
+kaam ginti(n) {
+    badlo kul = 0;
+    ke_liye (badlo i in 1..n) {
+        agar (i % 3 == 0) { aage_badho; }
+        agar (i > 20) { bas; }
+        kul += i;
+    }
+    ke_liye (badlo j in 5..1) { kul = kul * 2 - j; }
+    wapas kul;
+}
+dikhao(ginti(100));
+
+kaam jabtak_wala(n) {
+    badlo k = 0;
+    badlo seedhi = [];
+    jabtak (k < n) {
+        k = k + 1;
+        agar (k == 2) { aage_badho; }
+        seedhi.push(k);
+    }
+    wapas seedhi;
+}
+dikhao(jabtak_wala(5));
+
+# a list that grows while it is looped over is read live
+kaam badhta() {
+    badlo xs = [1, 2, 3];
+    badlo dekhe = 0;
+    ke_liye (badlo x in xs) {
+        dekhe += 1;
+        agar (x < 3) { push(xs, x + 10); }
+    }
+    wapas dekhe;
+}
+dikhao(badhta());
+
+# strings, formatting, dicts, sets and tuples as loop sources
+kaam bayan(naam, umar) {
+    badlo hisaab = umar * 1.5;
+    wapas "{naam} ki umar {umar}, hisaab {hisaab:.2}, [{naam:>6}]";
+}
+dikhao(bayan("Asha", 7));
+kaam chaabiyan(d) {
+    badlo out = "";
+    ke_liye (badlo k in d) { out = out + k; }
+    wapas out;
+}
+dikhao(chaabiyan({"a": 1, "b": 2, "c": 3}));
+kaam akshar(s) {
+    badlo n = 0;
+    ke_liye (badlo c in s) { agar (c == "a") { n += 1; } }
+    wapas n;
+}
+dikhao(akshar("banana"));
+
+# globals read and written from inside, index assignment, compound index assignment
+badlo ginti_global = 0;
+kaam badhao() {
+    ginti_global += 5;
+    ginti_global = ginti_global * 2;
+    wapas ginti_global;
+}
+dikhao(badhao(), ginti_global);
+kaam bharo(n) {
+    badlo xs = [];
+    ke_liye (badlo i in 0..n) { xs.push(0); }
+    ke_liye (badlo i in 0..n) { xs[i] = i * i; xs[i] += 1; }
+    wapas xs;
+}
+dikhao(bharo(4));
+
+# short circuits, ??, inline agar, unary
+kaam tark(a, b) {
+    badlo x = khali;
+    wapas [a && b, a || b, !a, -5 + 2, x ?? "khali tha", agar (a) "haan" warna "nahi", b ?? 3];
+}
+dikhao(tark(sahi_hai_be, jhuth));
+dikhao(tark(jhuth, khali));
+
+# big integers and floats
+kaam bada(n) {
+    badlo x = 1;
+    ke_liye (badlo i in 1..n) { x = x * i; }
+    wapas x;
+}
+dikhao(bada(25));
+dikhao(bada(3) / 4);
+
+# shadowing: a block's variable hides the outer one only inside the block
+kaam chhaya() {
+    badlo x = 1;
+    agar (sahi_hai_be) { badlo x = 2; dikhao(x); }
+    wapas x;
+}
+dikhao(chhaya());
+
+# defaults and named arguments are bound before the bytecode runs
+kaam milao(a, b = 10) { wapas a + b; }
+dikhao(milao(1), milao(1, 2), milao(b: 5, a: 1));
+
+# dict literals, including a bad key
+kaam shabdkosh(n) {
+    badlo d = {"ek": 1, "do": n, n: "number key"};
+    d["teen"] = 3;
+    wapas d;
+}
+dikhao(shabdkosh(2));
+kaam galat_key() { wapas {[1]: "list key"}; }
+pakdo { galat_key(); } chhoddo (e) { dikhao("pakda:", e); }
+
+# dot-calls, fields and records passed in from outside
+dhacha Vyakti { naam, umar = 0 };
+kaam Vyakti.shabd() { wapas "{yeh.naam} ({yeh.umar})"; }
+kaam janamdin(p) {
+    p.umar += 1;
+    p.naam = p.naam.upper();
+    wapas p;
+}
+dikhao(janamdin(Vyakti { naam: "ravi", umar: 30 }));
+kaam ulta(xs) {
+    badlo out = [];
+    ke_liye (badlo x in xs) { out.insert(0, x); }
+    wapas out.join("-");
+}
+dikhao(ulta(["a", "b", "c"]));
+kaam shayad(p) { wapas [p?.naam, p?.naam ?? "koi nahi"]; }
+dikhao(shayad(khali), shayad(Vyakti { naam: "Sita" }));
+kaam bina_field(p) { wapas p.pata; }
+pakdo { bina_field(Vyakti { naam: "x" }); } chhoddo (e) { dikhao("pakda:", e); }
+kaam galat_dot(n) { wapas n.nahi_hai(dikhao_aur_do(1)); }
+kaam dikhao_aur_do(x) { dikhao("arg chala"); wapas x; }
+pakdo { galat_dot(5); } chhoddo (e) { dikhao("pakda:", e); }
+
+# errors keep their positions and the call chain
+kaam bhaag_karo(a, b) { wapas a / b; }
+kaam beech(x) { wapas bhaag_karo(x, 0); }
+pakdo { beech(4); } chhoddo (e) { dikhao("pakda:", e); }
+kaam galat_call() { badlo n = 5; wapas n(1); }
+pakdo { galat_call(); } chhoddo (e) { dikhao("pakda:", e); }
+kaam galat_loop() { ke_liye (badlo x in 42) { } }
+pakdo { galat_loop(); } chhoddo (e) { dikhao("pakda:", e); }
+dikhao(beech(9));

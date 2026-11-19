@@ -23,6 +23,7 @@ pub mod semantics;
 pub mod stdlib;
 pub mod topython;
 pub mod value;
+pub mod vm;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 #[cfg(not(target_arch = "wasm32"))]
